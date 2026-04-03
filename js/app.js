@@ -206,7 +206,7 @@ Only include platforms that were requested. Preserve line breaks in post text us
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
-          max_tokens: 4000,
+          max_tokens: 10000,
           system: SYSTEM_PROMPT,
           messages: [{ role: 'user', content: userPrompt }]
         })
