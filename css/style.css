@@ -1,27 +1,31 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --green-900: #357565;
-  --green-800: #4BAAA5;
-  --green-700: #529EB5;
+  --green-900: #2d6e82;
+  --green-800: #529EB5;
+  --green-700: #4BAAA5;
   --green-600: #4a6e8d;
   --green-100: #BCE8F3;
-  --green-50:  #eef8fb;
-  --sand-100: #F5F8F8;
-  --sand-200: #E8EFEF;
-  --sand-300: #C8D8D7;
-  --ink-900: #1a2626;
-  --ink-700: #3a4e4e;
+  --green-50:  #edf7fb;
+  --sand-100: #F5F8F9;
+  --sand-200: #E4EEF2;
+  --sand-300: #C5D8E0;
+  --ink-900: #1a2a2e;
+  --ink-700: #2d4a52;
   --ink-500: #5F6F6E;
-  --ink-300: #8fa8a7;
-  --ink-100: #d8e5e4;
+  --ink-300: #8fadb5;
+  --ink-100: #d4e5ea;
   --white: #FAFAFA;
+  --sidebar-w: 220px;
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
-  --sidebar-w: 220px;
-  --font-sans: 'DM Sans', sans-serif;
-  --font-serif: 'DM Serif Display', serif;
+  --font-sans: 'Inter', sans-serif;
+  --font-serif: 'Inter', sans-serif;
+  --coral: #FF8C7A;
+  --gold: #E7B85A;
+  --mint: #A9EACF;
+  --pastel-teal: #7AD0C7;
 }
 
 body {
@@ -654,4 +658,32 @@ body {
 .delete-btn:hover {
   border-color: #FF8C7A;
   color: #c0392b;
+}
+
+/* ── SAVE STATUS & HISTORY URL ──────────────── */
+
+.save-status {
+  font-size: 12px;
+  color: var(--green-800);
+  background: var(--green-50);
+  border: 1px solid var(--green-100);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.history-url {
+  font-size: 11px;
+  margin-bottom: 8px;
+}
+
+.history-url a {
+  color: var(--green-700);
+  text-decoration: none;
+  word-break: break-all;
+}
+
+.history-url a:hover {
+  text-decoration: underline;
 }
