@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FQHC Social Studio</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <div class="app-shell">
+
+    <aside class="sidebar">
+      <div class="sidebar-top">
+        <div class="logo">
+          <div class="logo-mark">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <rect width="20" height="20" rx="5" fill="#1a6b4a"/>
+              <path d="M5 10h10M10 5v10" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div>
+            <div class="logo-title">Social Studio</div>
+            <div class="logo-sub">FQHC Content Intelligence</div>
+          </div>
+        </div>
+
+        <nav class="sidebar-nav">
+          <button class="nav-item active" data-view="compose">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            Compose
+          </button>
+          <button class="nav-item" data-view="history">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            History
+          </button>
+          <button class="nav-item" data-view="settings">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
+            Settings
+          </button>
+        </nav>
+      </div>
+
+      <div class="sidebar-sources">
+        <div class="sources-label">Alert sources</div>
+        <div class="source-item is-active">
+          <span class="source-dot gmail"></span>
+          Gmail alerts
+          <span class="badge-active">Active</span>
+        </div>
+        <div class="source-item is-soon">
+          <span class="source-dot rss"></span>
+          RSS feeds
+          <span class="badge-soon">Soon</span>
+        </div>
+        <div class="source-item is-soon">
+          <span class="source-dot webhook"></span>
+          Webhooks / Zapier
+          <span class="badge-soon">Soon</span>
+        </div>
+        <div class="source-item is-soon">
+          <span class="source-dot api-src"></span>
+          Direct API
+          <span class="badge-soon">Soon</span>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+
+      <!-- COMPOSE VIEW -->
+      <div class="view" id="view-compose">
+        <div class="view-header">
+          <h1>New post batch</h1>
+          <p class="view-sub">Paste your alert, choose platforms, generate posts</p>
+        </div>
+
+        <div class="compose-grid">
+
+          <div class="compose-inputs">
+
+            <div class="field-block">
+              <label class="field-label">
+                Alert content
+                <span class="required">required</span>
+              </label>
+              <div class="source-tabs">
+                <button class="src-tab active">Manual paste</button>
+                <button class="src-tab is-disabled" title="Coming soon">Gmail (soon)</button>
+                <button class="src-tab is-disabled" title="Coming soon">RSS (soon)</button>
+              </div>
+              <textarea id="alertContent" class="content-area" placeholder="Paste the content from your Google Alert email — the headline, article snippet, or full publication text..."></textarea>
+            </div>
+
+            <div class="field-row">
+              <div class="field-block">
+                <label class="field-label">Source organization</label>
+                <input type="text" id="sourceOrg" class="field-input" placeholder="e.g. NACHC, HRSA, NCCHCA" />
+              </div>
+              <div class="field-block">
+                <label class="field-label">Article URL</label>
+                <input type="text" id="articleUrl" class="field-input" placeholder="https://..." />
+              </div>
+            </div>
+
+            <div class="field-block">
+              <label class="field-label">Platforms</label>
+              <div class="platform-grid">
+                <label class="plat-toggle">
+                  <input type="checkbox" value="fb_page" checked />
+                  <div class="plat-chip">
+                    <div class="plat-icon" style="background:#1877F2;"></div>
+                    <div>
+                      <div class="plat-name">Facebook</div>
+                      <div class="plat-sub">Page post</div>
+                    </div>
+                  </div>
+                </label>
+                <label class="plat-toggle">
+                  <input type="checkbox" value="fb_group" checked />
+                  <div class="plat-chip">
+                    <div class="plat-icon" style="background:#1877F2;"></div>
+                    <div>
+                      <div class="plat-name">Facebook</div>
+                      <div class="plat-sub">Group post</div>
+                    </div>
+                  </div>
+                </label>
+                <label class="plat-toggle">
+                  <input type="checkbox" value="reddit" checked />
+                  <div class="plat-chip">
+                    <div class="plat-icon" style="background:#FF4500;"></div>
+                    <div>
+                      <div class="plat-name">Reddit</div>
+                      <div class="plat-sub">Community post</div>
+                    </div>
+                  </div>
+                </label>
+                <label class="plat-toggle">
+                  <input type="checkbox" value="linkedin" checked />
+                  <div class="plat-chip">
+                    <div class="plat-icon" style="background:#0A66C2;"></div>
+                    <div>
+                      <div class="plat-name">LinkedIn</div>
+                      <div class="plat-sub">Professional post</div>
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div class="field-row">
+              <div class="field-block">
+                <label class="field-label">Tone</label>
+                <select id="toneSelect" class="field-input">
+                  <option value="informative">Informative</option>
+                  <option value="thought_leadership">Thought leadership</option>
+                  <option value="urgent">Urgent / advocacy</option>
+                  <option value="community">Community / conversational</option>
+                </select>
+              </div>
+              <div class="field-block">
+                <label class="field-label">Brand / org name</label>
+                <input type="text" id="orgName" class="field-input" placeholder="Optional" />
+              </div>
+            </div>
+
+            <button class="generate-btn" id="genBtn" onclick="window.studio.generatePosts()">
+              Generate posts
+              <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+            </button>
+
+          </div>
+
+          <div class="compose-results" id="resultsCol">
+            <div class="empty-state" id="emptyState">
+              <svg width="36" height="36" fill="none" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              <p>Posts appear here</p>
+              <span>Paste content and click Generate</span>
+            </div>
+            <div id="postsContainer"></div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- HISTORY VIEW -->
+      <div class="view hidden" id="view-history">
+        <div class="view-header">
+          <h1>Post history</h1>
+          <p class="view-sub">Previously generated batches — saved in your browser</p>
+        </div>
+        <div id="historyList"></div>
+        <div class="empty-state" id="historyEmpty" style="margin-top:3rem;">
+          <svg width="36" height="36" fill="none" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <p>No history yet</p>
+          <span>Generated batches are saved here automatically</span>
+        </div>
+      </div>
+
+      <!-- SETTINGS VIEW -->
+      <div class="view hidden" id="view-settings">
+        <div class="view-header">
+          <h1>Settings</h1>
+          <p class="view-sub">API keys, preferences, and upcoming integrations</p>
+        </div>
+
+        <div class="settings-grid">
+
+          <div class="settings-card">
+            <div class="settings-card-title">Anthropic API key</div>
+            <div class="field-block" style="margin-top:1rem;">
+              <div style="display:flex;gap:8px;align-items:flex-end;">
+                <div class="field-block" style="flex:1;margin:0;">
+                  <label class="field-label">API key</label>
+                  <input type="password" id="apiKeyInput" class="field-input" placeholder="sk-ant-..." />
+                </div>
+                <button class="save-btn" onclick="window.studio.saveApiKey()">Save</button>
+              </div>
+              <div class="field-hint">Stored only in your browser's localStorage. Never sent anywhere except directly to Anthropic's API.</div>
+              <div id="apiKeyStatus"></div>
+            </div>
+          </div>
+
+          <div class="settings-card">
+            <div class="settings-card-title">Default preferences</div>
+            <div class="field-block" style="margin-top:1rem;">
+              <label class="field-label">Default brand / org name</label>
+              <input type="text" id="defaultOrgName" class="field-input" placeholder="Auto-filled in all posts" />
+            </div>
+            <div class="field-block" style="margin-top:1rem;">
+              <label class="field-label">Default tone</label>
+              <select id="defaultTone" class="field-input">
+                <option value="informative">Informative</option>
+                <option value="thought_leadership">Thought leadership</option>
+                <option value="urgent">Urgent / advocacy</option>
+                <option value="community">Community / conversational</option>
+              </select>
+            </div>
+            <button class="save-btn" style="margin-top:1.25rem;" onclick="window.studio.saveDefaults()">Save preferences</button>
+            <div id="prefsStatus"></div>
+          </div>
+
+          <div class="settings-card">
+            <div class="settings-card-title">Planned integrations</div>
+            <div class="integration-list">
+              <div class="integration-row">
+                <div>
+                  <div class="int-name">RSS feed monitor</div>
+                  <div class="int-desc">Auto-pull from NACHC, HRSA, and state PCA feeds</div>
+                </div>
+                <span class="badge-soon">Planned</span>
+              </div>
+              <div class="integration-row">
+                <div>
+                  <div class="int-name">Gmail API</div>
+                  <div class="int-desc">Pull alert emails directly without copy/paste</div>
+                </div>
+                <span class="badge-soon">Planned</span>
+              </div>
+              <div class="integration-row">
+                <div>
+                  <div class="int-name">Zapier / Make.com webhook</div>
+                  <div class="int-desc">Trigger post generation from any automation</div>
+                </div>
+                <span class="badge-soon">Planned</span>
+              </div>
+              <div class="integration-row">
+                <div>
+                  <div class="int-name">Buffer / Hootsuite export</div>
+                  <div class="int-desc">Schedule posts directly from the studio</div>
+                </div>
+                <span class="badge-soon">Planned</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
