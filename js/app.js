@@ -220,7 +220,13 @@ Only include platforms that were requested. Preserve line breaks in post text us
       const data = await response.json();
       const raw = (data.content || []).map(b => b.text || '').join('').trim();
       const clean = raw.replace(/```json|```/g, '').trim();
-      const posts = JSON.parse(clean);
+let posts;
+try {
+  posts = JSON.parse(clean);
+} catch(parseErr) {
+  const fixed = clean.slice(0, clean.lastIndexOf('}')) + '}]';
+  posts = JSON.parse(fixed);
+}
 
       this.renderPosts(posts, container);
       this.saveToHistory({ content, source, url, tone, orgName, platforms, posts });
