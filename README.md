@@ -1,4 +1,4 @@
-# FQHC Social Studio
+# Apiary Media Center
 
 A self-hosted social media content generator built specifically for the FQHC ecosystem. Paste alert content from Google Alerts (or future sources), select platforms, and generate ready-to-post content for Facebook, Reddit, and LinkedIn — powered by the Anthropic Claude API.
 
@@ -33,7 +33,7 @@ fqhc-social-studio/
 ### 1. Clone the repo
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/fqhc-social-studio.git
+git clone https://github.com/YOUR_USERNAME/apiary-media-center.git
 cd fqhc-social-studio
 ```
 
@@ -63,7 +63,7 @@ git init
 git add .
 git commit -m "Initial commit"
 git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/fqhc-social-studio.git
+git remote add origin https://github.com/YOUR_USERNAME/apiary-media-center.git
 git push -u origin main
 ```
 
@@ -74,7 +74,7 @@ git push -u origin main
 
 Your app will be live at:
 ```
-https://YOUR_USERNAME.github.io/fqhc-social-studio/
+https://YOUR_USERNAME.github.io/apiary-media-center/
 ```
 
 It may take 1-2 minutes for the first deploy to appear.
