@@ -1,0 +1,15 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Future: if you add a Node backend
+node_modules/
+.env
+.env.local
+
+# Future: build output
+dist/
