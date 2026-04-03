@@ -223,6 +223,24 @@ Use \\n for line breaks inside the post text.`;
     btn.disabled = false;
     btn.innerHTML = 'Generate posts <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>';
   },
+
+appendPost(item, container) {
+    const meta = PLATFORM_META[item.platform] || { label: item.platform, badgeClass: '' };
+    const card = document.createElement('div');
+    card.className = 'post-card';
+    card.innerHTML = `
+      <div class="post-header">
+        <span class="platform-badge ${meta.badgeClass}">${meta.label}</span>
+        <div class="post-actions">
+          <button class="action-btn" onclick="studio.copyPost(this, ${JSON.stringify(item.post)})">Copy</button>
+        </div>
+      </div>
+      <div class="post-body">${this.escapeHtml(item.post)}</div>
+      <div class="char-count">${item.post.length} characters</div>
+    `;
+    container.appendChild(card);
+  },
+  
   renderPosts(posts, container) {
     container.innerHTML = '';
     posts.forEach(item => {
