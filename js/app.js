@@ -209,7 +209,7 @@ Use \\n for line breaks inside the post text.`;
 
         const loadingEl = document.getElementById(`loading-${platform}`);
         if (loadingEl) loadingEl.remove();
-        this.appendPost(item, container);
+        studio.appendPost(item, container);
 
       } catch (err) {
         const loadingEl = document.getElementById(`loading-${platform}`);
