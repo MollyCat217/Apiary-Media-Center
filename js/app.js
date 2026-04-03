@@ -102,7 +102,7 @@ async function generatePosts() {
   if (!platforms.length) { showError('Please select at least one platform.'); return; }
 
   const tone = document.getElementById('toneSelect').value;
-  const orgName = document.getElementById('orgName').value.trim();
+  const orgName = 'Afya, by Apiary Labs';
 
   const hooks = Storage.get('messagingHooks', []);
   const selectedHookId = parseInt(document.getElementById('hookSelect')?.value);
