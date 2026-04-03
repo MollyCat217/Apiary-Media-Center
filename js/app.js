@@ -87,6 +87,37 @@ function showError(msg) {
   container.innerHTML = '<div class="error-msg">' + msg + '</div>';
 }
 
+async function saveToGoogleSheet(batch) {
+  const scriptUrl = Storage.get('scriptUrl', '');
+  if (!scriptUrl) return;
+
+  try {
+    await fetch(scriptUrl, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(batch)
+    });
+  } catch (err) {
+    console.warn('Could not save to Google Sheet:', err.message);
+  }
+}
+
+async function loadFromGoogleSheet() {
+  const scriptUrl = Storage.get('scriptUrl', '');
+  if (!scriptUrl) return null;
+
+  try {
+    const response = await fetch(scriptUrl + '?action=get');
+    const data = await response.json();
+    if (data.success) return data.batches;
+    return null;
+  } catch (err) {
+    console.warn('Could not load from Google Sheet:', err.message);
+    return null;
+  }
+}
+
 async function generatePosts() {
   const apiKey = Storage.get('apiKey', '');
   if (!apiKey) { showError('Please add your Anthropic API key in Settings first.'); return; }
@@ -117,6 +148,7 @@ async function generatePosts() {
   container.innerHTML = '';
 
   const posts = [];
+  const timestamp = new Date().toISOString();
 
   for (const platform of platforms) {
     const meta = PLATFORM_META[platform];
@@ -188,21 +220,98 @@ Use \\n for line breaks inside the post text.`;
   }
 
   if (posts.length) {
+    const batch = {
+      timestamp,
+      source: source || '',
+      url: url || '',
+      content,
+      hook: activeHook ? activeHook.name : '',
+      platforms,
+      posts
+    };
+
+    await saveToGoogleSheet(batch);
+
     const history = Storage.get('postHistory', []);
-    history.unshift({
-      id: Date.now(),
-      timestamp: new Date().toISOString(),
-      source: source || 'Unknown source',
-      contentSnippet: content.slice(0, 120),
-      platforms: platforms,
-      hook: activeHook ? activeHook.name : null,
-      posts: posts
-    });
+    history.unshift(batch);
     Storage.set('postHistory', history.slice(0, 50));
+
+    const saveStatus = document.createElement('div');
+    saveStatus.className = 'save-status';
+    saveStatus.textContent = Storage.get('scriptUrl', '')
+      ? 'Saved to Google Sheet'
+      : 'Saved to browser history';
+    container.insertBefore(saveStatus, container.firstChild);
+    setTimeout(() => saveStatus.remove(), 3000);
   }
 
   btn.disabled = false;
   btn.innerHTML = 'Generate posts <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>';
+}
+
+async function renderHistory() {
+  const list = document.getElementById('historyList');
+  const empty = document.getElementById('historyEmpty');
+  const loading = document.getElementById('historyLoading');
+
+  if (loading) loading.style.display = 'block';
+  if (list) list.innerHTML = '';
+
+  let batches = null;
+  const scriptUrl = Storage.get('scriptUrl', '');
+
+  if (scriptUrl) {
+    batches = await loadFromGoogleSheet();
+  }
+
+  if (!batches) {
+    batches = Storage.get('postHistory', []);
+  }
+
+  if (loading) loading.style.display = 'none';
+
+  if (!batches.length) {
+    if (empty) empty.style.display = 'flex';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+
+  list.innerHTML = batches.map(function(batch) {
+    const date = new Date(batch.timestamp).toLocaleDateString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+    const platforms = batch.platforms || [...new Set((batch.posts || []).map(p => p.platform))];
+    const platformBadges = platforms
+      .map(p => '<span class="hist-badge">' + (PLATFORM_META[p] ? PLATFORM_META[p].label : p) + '</span>')
+      .join('');
+    const hookBadge = batch.hook
+      ? '<span class="hist-badge" style="background:var(--green-50);color:var(--green-800);">Hook: ' + escapeHtml(batch.hook) + '</span>'
+      : '';
+    const postsHtml = (batch.posts || []).map(function(item) {
+      const meta = PLATFORM_META[item.platform] || { label: item.platform, badgeClass: '' };
+      return '<div class="post-card" style="margin-bottom:10px;">' +
+        '<div class="post-header">' +
+        '<span class="platform-badge ' + meta.badgeClass + '">' + meta.label + '</span>' +
+        '<button class="action-btn" onclick="copyPost(this, ' + JSON.stringify(item.post) + ')">Copy</button>' +
+        '</div>' +
+        '<div class="post-body">' + escapeHtml(item.post) + '</div>' +
+        '</div>';
+    }).join('');
+
+    const snippet = batch.contentSnippet || (batch.content ? batch.content.slice(0, 120) : '');
+
+    return '<div class="history-card">' +
+      '<div class="history-meta">' +
+      '<div class="history-title">' + escapeHtml(batch.source || 'Untitled') + (snippet ? ' — ' + escapeHtml(snippet) + '...' : '') + '</div>' +
+      '<div class="history-date">' + date + '</div>' +
+      '</div>' +
+      (batch.url ? '<div class="history-url"><a href="' + escapeHtml(batch.url) + '" target="_blank">' + escapeHtml(batch.url) + '</a></div>' : '') +
+      '<div class="history-platforms">' + platformBadges + hookBadge + '</div>' +
+      '<button class="history-expand-btn" onclick="this.nextElementSibling.classList.toggle(\'open\'); this.textContent = this.nextElementSibling.classList.contains(\'open\') ? \'Hide posts\' : \'View posts\'">View posts</button>' +
+      '<div class="history-posts">' + postsHtml + '</div>' +
+      '</div>';
+  }).join('');
 }
 
 function saveHook() {
@@ -270,49 +379,6 @@ function populateHookDropdown() {
   select.value = current;
 }
 
-function renderHistory() {
-  const history = Storage.get('postHistory', []);
-  const list = document.getElementById('historyList');
-  const empty = document.getElementById('historyEmpty');
-  if (!list) return;
-  if (!history.length) {
-    list.innerHTML = '';
-    if (empty) empty.style.display = 'flex';
-    return;
-  }
-  if (empty) empty.style.display = 'none';
-
-  list.innerHTML = history.map(function(batch) {
-    const date = new Date(batch.timestamp).toLocaleDateString('en-US', {
-      month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
-    });
-    const platformBadges = (batch.platforms || [])
-      .map(p => '<span class="hist-badge">' + (PLATFORM_META[p] ? PLATFORM_META[p].label : p) + '</span>')
-      .join('');
-    const hookBadge = batch.hook ? '<span class="hist-badge" style="background:var(--green-50);color:var(--green-800);">Hook: ' + escapeHtml(batch.hook) + '</span>' : '';
-    const postsHtml = (batch.posts || []).map(function(item) {
-      const meta = PLATFORM_META[item.platform] || { label: item.platform, badgeClass: '' };
-      return '<div class="post-card" style="margin-bottom:10px;">' +
-        '<div class="post-header">' +
-        '<span class="platform-badge ' + meta.badgeClass + '">' + meta.label + '</span>' +
-        '<button class="action-btn" onclick="copyPost(this, ' + JSON.stringify(item.post) + ')">Copy</button>' +
-        '</div>' +
-        '<div class="post-body">' + escapeHtml(item.post) + '</div>' +
-        '</div>';
-    }).join('');
-
-    return '<div class="history-card">' +
-      '<div class="history-meta">' +
-      '<div class="history-title">' + escapeHtml(batch.source || 'Untitled') + ' — ' + escapeHtml(batch.contentSnippet || '') + '...</div>' +
-      '<div class="history-date">' + date + '</div>' +
-      '</div>' +
-      '<div class="history-platforms">' + platformBadges + hookBadge + '</div>' +
-      '<button class="history-expand-btn" onclick="this.nextElementSibling.classList.toggle(\'open\'); this.textContent = this.nextElementSibling.classList.contains(\'open\') ? \'Hide posts\' : \'View posts\'">View posts</button>' +
-      '<div class="history-posts">' + postsHtml + '</div>' +
-      '</div>';
-  }).join('');
-}
-
 function saveApiKey() {
   const key = document.getElementById('apiKeyInput').value.trim();
   if (!key.startsWith('sk-ant-')) {
@@ -323,13 +389,21 @@ function saveApiKey() {
   document.getElementById('apiKeyStatus').innerHTML = '<span class="status-ok">API key saved.</span>';
 }
 
+function saveScriptUrl() {
+  const url = document.getElementById('scriptUrlInput').value.trim();
+  if (!url.includes('script.google.com')) {
+    document.getElementById('scriptUrlStatus').innerHTML = '<span class="status-err">That doesn\'t look like a Google Apps Script URL.</span>';
+    return;
+  }
+  Storage.set('scriptUrl', url);
+  document.getElementById('scriptUrlStatus').innerHTML = '<span class="status-ok">Google Sheet connected!</span>';
+}
+
 function saveDefaults() {
   const orgName = document.getElementById('defaultOrgName').value.trim();
   const tone = document.getElementById('defaultTone').value;
   Storage.set('userDefaults', { orgName, tone });
-  const composeOrg = document.getElementById('orgName');
   const composeTone = document.getElementById('toneSelect');
-  if (composeOrg && orgName) composeOrg.value = orgName;
   if (composeTone && tone) composeTone.value = tone;
   document.getElementById('prefsStatus').innerHTML = '<span class="status-ok">Preferences saved.</span>';
   setTimeout(() => {
@@ -342,16 +416,27 @@ function loadSettings() {
   const apiKey = Storage.get('apiKey', '');
   const input = document.getElementById('apiKeyInput');
   if (input && apiKey) input.value = apiKey;
+
+  const scriptUrl = Storage.get('scriptUrl', '');
+  const scriptInput = document.getElementById('scriptUrlInput');
+  if (scriptInput && scriptUrl) scriptInput.value = scriptUrl;
+
   const defaults = Storage.get('userDefaults', {});
-  const orgEl = document.getElementById('defaultOrgName');
   const toneEl = document.getElementById('defaultTone');
-  if (orgEl && defaults.orgName) orgEl.value = defaults.orgName;
   if (toneEl && defaults.tone) toneEl.value = defaults.tone;
-  const el = document.getElementById('apiKeyStatus');
-  if (el) {
-    el.innerHTML = apiKey
+
+  const apiEl = document.getElementById('apiKeyStatus');
+  if (apiEl) {
+    apiEl.innerHTML = apiKey
       ? '<span class="status-ok">API key is set.</span>'
       : '<span class="status-err">No API key set.</span>';
+  }
+
+  const sheetEl = document.getElementById('scriptUrlStatus');
+  if (sheetEl) {
+    sheetEl.innerHTML = scriptUrl
+      ? '<span class="status-ok">Google Sheet connected.</span>'
+      : '<span class="status-err">No Google Sheet connected yet.</span>';
   }
 }
 
@@ -373,10 +458,6 @@ function initNav() {
 function init() {
   initNav();
   const defaults = Storage.get('userDefaults', {});
-  if (defaults.orgName) {
-    const el = document.getElementById('orgName');
-    if (el) el.value = defaults.orgName;
-  }
   if (defaults.tone) {
     const el = document.getElementById('toneSelect');
     if (el) el.value = defaults.tone;
@@ -387,6 +468,7 @@ function init() {
 window.generatePosts = generatePosts;
 window.copyPost = copyPost;
 window.saveApiKey = saveApiKey;
+window.saveScriptUrl = saveScriptUrl;
 window.saveDefaults = saveDefaults;
 window.saveHook = saveHook;
 window.deleteHook = deleteHook;
