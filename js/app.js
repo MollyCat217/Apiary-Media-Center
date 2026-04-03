@@ -94,7 +94,6 @@ async function generatePosts() {
   const content = document.getElementById('alertContent').value.trim();
   const source = document.getElementById('sourceOrg').value.trim();
   const url = document.getElementById('articleUrl').value.trim();
-
   if (!content) { showError('Please paste your alert content before generating.'); return; }
 
   const platforms = Array.from(
@@ -104,6 +103,11 @@ async function generatePosts() {
 
   const tone = document.getElementById('toneSelect').value;
   const orgName = document.getElementById('orgName').value.trim();
+
+  const hooks = Storage.get('messagingHooks', []);
+  const selectedHookId = parseInt(document.getElementById('hookSelect')?.value);
+  const activeHook = hooks.find(h => h.id === selectedHookId) || null;
+
   const btn = document.getElementById('genBtn');
   btn.disabled = true;
   btn.innerHTML = '<span>Generating...</span>';
@@ -131,6 +135,7 @@ ${url ? '\nURL: ' + url : ''}
 ${orgName ? '\nPOSTING ON BEHALF OF: ' + orgName : ''}
 
 TONE: ${TONE_DESCRIPTIONS[tone]}
+${activeHook ? '\nMESSAGING HOOK — weave this angle into the post: ' + activeHook.text : ''}
 
 PLATFORM INSTRUCTIONS:
 ${meta.instructions}
@@ -190,6 +195,7 @@ Use \\n for line breaks inside the post text.`;
       source: source || 'Unknown source',
       contentSnippet: content.slice(0, 120),
       platforms: platforms,
+      hook: activeHook ? activeHook.name : null,
       posts: posts
     });
     Storage.set('postHistory', history.slice(0, 50));
@@ -199,17 +205,82 @@ Use \\n for line breaks inside the post text.`;
   btn.innerHTML = 'Generate posts <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>';
 }
 
+function saveHook() {
+  const name = document.getElementById('hookName').value.trim();
+  const text = document.getElementById('hookText').value.trim();
+  if (!name || !text) {
+    document.getElementById('hookStatus').innerHTML = '<span class="status-err">Please fill in both fields.</span>';
+    return;
+  }
+  const hooks = Storage.get('messagingHooks', []);
+  hooks.push({ id: Date.now(), name, text });
+  Storage.set('messagingHooks', hooks);
+  document.getElementById('hookName').value = '';
+  document.getElementById('hookText').value = '';
+  document.getElementById('hookStatus').innerHTML = '<span class="status-ok">Hook saved!</span>';
+  setTimeout(() => {
+    const el = document.getElementById('hookStatus');
+    if (el) el.innerHTML = '';
+  }, 2000);
+  renderHooks();
+  populateHookDropdown();
+}
+
+function deleteHook(id) {
+  const hooks = Storage.get('messagingHooks', []).filter(h => h.id !== id);
+  Storage.set('messagingHooks', hooks);
+  renderHooks();
+  populateHookDropdown();
+}
+
+function renderHooks() {
+  const hooks = Storage.get('messagingHooks', []);
+  const list = document.getElementById('hooksList');
+  const empty = document.getElementById('hooksEmpty');
+  if (!list) return;
+  if (!hooks.length) {
+    list.innerHTML = '';
+    if (empty) empty.style.display = 'flex';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  list.innerHTML = hooks.map(hook => `
+    <div class="hook-card">
+      <div class="hook-card-top">
+        <div class="hook-name">${escapeHtml(hook.name)}</div>
+        <button class="delete-btn" onclick="deleteHook(${hook.id})">Remove</button>
+      </div>
+      <div class="hook-text">${escapeHtml(hook.text)}</div>
+    </div>
+  `).join('');
+}
+
+function populateHookDropdown() {
+  const select = document.getElementById('hookSelect');
+  if (!select) return;
+  const hooks = Storage.get('messagingHooks', []);
+  const current = select.value;
+  select.innerHTML = '<option value="">No hook — use tone only</option>';
+  hooks.forEach(hook => {
+    const opt = document.createElement('option');
+    opt.value = hook.id;
+    opt.textContent = hook.name;
+    select.appendChild(opt);
+  });
+  select.value = current;
+}
+
 function renderHistory() {
   const history = Storage.get('postHistory', []);
   const list = document.getElementById('historyList');
   const empty = document.getElementById('historyEmpty');
-
+  if (!list) return;
   if (!history.length) {
     list.innerHTML = '';
-    empty.style.display = 'flex';
+    if (empty) empty.style.display = 'flex';
     return;
   }
-  empty.style.display = 'none';
+  if (empty) empty.style.display = 'none';
 
   list.innerHTML = history.map(function(batch) {
     const date = new Date(batch.timestamp).toLocaleDateString('en-US', {
@@ -218,6 +289,7 @@ function renderHistory() {
     const platformBadges = (batch.platforms || [])
       .map(p => '<span class="hist-badge">' + (PLATFORM_META[p] ? PLATFORM_META[p].label : p) + '</span>')
       .join('');
+    const hookBadge = batch.hook ? '<span class="hist-badge" style="background:var(--green-50);color:var(--green-800);">Hook: ' + escapeHtml(batch.hook) + '</span>' : '';
     const postsHtml = (batch.posts || []).map(function(item) {
       const meta = PLATFORM_META[item.platform] || { label: item.platform, badgeClass: '' };
       return '<div class="post-card" style="margin-bottom:10px;">' +
@@ -234,7 +306,7 @@ function renderHistory() {
       '<div class="history-title">' + escapeHtml(batch.source || 'Untitled') + ' — ' + escapeHtml(batch.contentSnippet || '') + '...</div>' +
       '<div class="history-date">' + date + '</div>' +
       '</div>' +
-      '<div class="history-platforms">' + platformBadges + '</div>' +
+      '<div class="history-platforms">' + platformBadges + hookBadge + '</div>' +
       '<button class="history-expand-btn" onclick="this.nextElementSibling.classList.toggle(\'open\'); this.textContent = this.nextElementSibling.classList.contains(\'open\') ? \'Hide posts\' : \'View posts\'">View posts</button>' +
       '<div class="history-posts">' + postsHtml + '</div>' +
       '</div>';
@@ -293,6 +365,7 @@ function initNav() {
       document.getElementById('view-' + view).classList.remove('hidden');
       if (view === 'history') renderHistory();
       if (view === 'settings') loadSettings();
+      if (view === 'hooks') renderHooks();
     });
   });
 }
@@ -308,12 +381,14 @@ function init() {
     const el = document.getElementById('toneSelect');
     if (el) el.value = defaults.tone;
   }
+  populateHookDropdown();
 }
 
 window.generatePosts = generatePosts;
 window.copyPost = copyPost;
 window.saveApiKey = saveApiKey;
 window.saveDefaults = saveDefaults;
-window.studio = { generatePosts, saveApiKey, saveDefaults };
+window.saveHook = saveHook;
+window.deleteHook = deleteHook;
 
 document.addEventListener('DOMContentLoaded', init);
