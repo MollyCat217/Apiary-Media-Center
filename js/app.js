@@ -134,111 +134,95 @@ const studio = {
 
   /* ── POST GENERATION ─────────────────────── */
 
-  async generatePosts() {
+async generatePosts() {
     const apiKey = Storage.get('apiKey', '');
-    if (!apiKey) {
-      this.showError('Please add your Anthropic API key in Settings first.');
-      return;
-    }
+    if (!apiKey) { this.showError('Please add your Anthropic API key in Settings first.'); return; }
 
     const { content, source, url } = SOURCE_HANDLERS.manual.getContent();
-    if (!content) {
-      this.showError('Please paste your alert content before generating.');
-      return;
-    }
+    if (!content) { this.showError('Please paste your alert content before generating.'); return; }
 
     const platforms = Array.from(
       document.querySelectorAll('.plat-toggle input:checked')
     ).map(cb => cb.value);
-
-    if (!platforms.length) {
-      this.showError('Please select at least one platform.');
-      return;
-    }
+    if (!platforms.length) { this.showError('Please select at least one platform.'); return; }
 
     const tone = document.getElementById('toneSelect').value;
     const orgName = document.getElementById('orgName').value.trim();
-
     const btn = document.getElementById('genBtn');
     btn.disabled = true;
-    btn.innerHTML = '<span>Generating...</span>';
 
     const container = document.getElementById('postsContainer');
-    const emptyState = document.getElementById('emptyState');
-    emptyState.style.display = 'none';
-    container.innerHTML = `<div class="loading-msg">Generating ${platforms.length} post${platforms.length > 1 ? 's' : ''} — usually takes 10-20 seconds...</div>`;
+    document.getElementById('emptyState').style.display = 'none';
+    container.innerHTML = '';
 
-    const platformBlock = platforms
-      .map(p => `--- ${PLATFORM_META[p].label.toUpperCase()} ---\n${PLATFORM_META[p].instructions}`)
-      .join('\n\n');
+    const posts = [];
 
-    const userPrompt = `Generate social media posts based on this FQHC-related alert or publication:
+    for (const platform of platforms) {
+      const meta = PLATFORM_META[platform];
+      container.innerHTML += `<div class="loading-msg" id="loading-${platform}">Generating ${meta.label}...</div>`;
+
+      const userPrompt = `Generate a single social media post based on this FQHC-related alert:
 
 CONTENT:
 ${content}
-${source ? `\nSOURCE / ORGANIZATION: ${source}` : ''}
-${url ? `\nARTICLE URL: ${url}` : ''}
+${source ? `\nSOURCE: ${source}` : ''}
+${url ? `\nURL: ${url}` : ''}
 ${orgName ? `\nPOSTING ON BEHALF OF: ${orgName}` : ''}
 
-OVERALL TONE: ${TONE_DESCRIPTIONS[tone]}
+TONE: ${TONE_DESCRIPTIONS[tone]}
 
-Generate one post per platform listed below. Follow each platform's instructions exactly.
+PLATFORM INSTRUCTIONS:
+${meta.instructions}
 
-${platformBlock}
+Respond with ONLY a valid JSON object — no markdown, no explanation, no code fences:
+{"platform": "${platform}", "post": "your post text here"}
 
-Respond with ONLY a valid JSON array — no markdown, no explanation, no code fences. Format:
-[
-  {"platform": "fb_page", "post": "full post text"},
-  {"platform": "fb_group", "post": "full post text"},
-  {"platform": "reddit", "post": "full post text"},
-  {"platform": "linkedin", "post": "full post text"}
-]
-Only include platforms that were requested. Preserve line breaks in post text using \\n.`;
+Use \\n for line breaks inside the post text.`;
 
-    try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 10000,
-          system: SYSTEM_PROMPT,
-          messages: [{ role: 'user', content: userPrompt }]
-        })
-      });
+      try {
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true'
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 2000,
+            system: SYSTEM_PROMPT,
+            messages: [{ role: 'user', content: userPrompt }]
+          })
+        });
 
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.error?.message || `API error ${response.status}`);
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          throw new Error(err.error?.message || `API error ${response.status}`);
+        }
+
+        const data = await response.json();
+        const raw = (data.content || []).map(b => b.text || '').join('').trim();
+        const clean = raw.replace(/```json|```/g, '').trim();
+        const item = JSON.parse(clean);
+        posts.push(item);
+
+        const loadingEl = document.getElementById(`loading-${platform}`);
+        if (loadingEl) loadingEl.remove();
+        this.appendPost(item, container);
+
+      } catch (err) {
+        const loadingEl = document.getElementById(`loading-${platform}`);
+        if (loadingEl) loadingEl.remove();
+        container.innerHTML += `<div class="error-msg">Error generating ${meta.label}: ${err.message}</div>`;
       }
-
-      const data = await response.json();
-      const raw = (data.content || []).map(b => b.text || '').join('').trim();
-      const clean = raw.replace(/```json|```/g, '').trim();
-let posts;
-try {
-  posts = JSON.parse(clean);
-} catch(parseErr) {
-  const fixed = clean.slice(0, clean.lastIndexOf('}')) + '}]';
-  posts = JSON.parse(fixed);
-}
-
-      this.renderPosts(posts, container);
-      this.saveToHistory({ content, source, url, tone, orgName, platforms, posts });
-
-    } catch (err) {
-      container.innerHTML = `<div class="error-msg">Error: ${err.message}</div>`;
     }
+
+    if (posts.length) this.saveToHistory({ content, source, url, tone, orgName, platforms, posts });
 
     btn.disabled = false;
     btn.innerHTML = 'Generate posts <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>';
   },
-
   renderPosts(posts, container) {
     container.innerHTML = '';
     posts.forEach(item => {
