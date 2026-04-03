@@ -1,6 +1,4 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
---sidebar-w: 220px;
-
 
 :root {
   --green-900: #357565;
@@ -18,6 +16,12 @@
   --ink-300: #8fa8a7;
   --ink-100: #d8e5e4;
   --white: #FAFAFA;
+  --sidebar-w: 220px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --font-sans: 'DM Sans', sans-serif;
+  --font-serif: 'DM Serif Display', serif;
 }
 
 body {
