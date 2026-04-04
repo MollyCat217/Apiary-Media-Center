@@ -687,3 +687,148 @@ body {
 .history-url a:hover {
   text-decoration: underline;
 }
+
+/* ── SUMMARY CARD ────────────────────────────── */
+
+.summary-card {
+  background: var(--white);
+  border: 1.5px solid var(--green-100);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.summary-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--sand-200);
+}
+
+.summary-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--green-800);
+}
+
+.summary-section {
+  margin-bottom: 1rem;
+}
+
+.summary-section:last-child {
+  margin-bottom: 0;
+}
+
+.summary-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-300);
+  margin-bottom: 5px;
+}
+
+.summary-tldr {
+  font-size: 13px;
+  color: var(--ink-900);
+  line-height: 1.6;
+  font-weight: 500;
+}
+
+.summary-facts {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.summary-facts li {
+  font-size: 13px;
+  color: var(--ink-700);
+  line-height: 1.5;
+  padding-left: 14px;
+  position: relative;
+}
+
+.summary-facts li::before {
+  content: '•';
+  position: absolute;
+  left: 0;
+  color: var(--green-800);
+  font-weight: 600;
+}
+
+.summary-why {
+  font-size: 13px;
+  color: var(--ink-700);
+  line-height: 1.6;
+  background: var(--green-50);
+  border-left: 3px solid var(--green-800);
+  padding: 8px 12px;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.summary-hashtags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.hashtag-chip {
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: var(--green-50);
+  color: var(--green-800);
+  border: 1px solid var(--green-100);
+  font-weight: 500;
+}
+
+.summary-divider {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-300);
+  margin: 1.25rem 0 0.75rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--sand-200);
+}
+
+/* ── HISTORY SUMMARY ─────────────────────────── */
+
+.hist-summary {
+  background: var(--green-50);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.hist-summary-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--green-800);
+  margin-bottom: 4px;
+}
+
+.hist-summary-tldr {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-900);
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+
+.hist-summary-why {
+  font-size: 12px;
+  color: var(--ink-500);
+  line-height: 1.5;
+}
