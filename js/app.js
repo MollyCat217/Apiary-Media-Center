@@ -87,10 +87,120 @@ function showError(msg) {
   container.innerHTML = '<div class="error-msg">' + msg + '</div>';
 }
 
+function renderSummary(summary, container) {
+  const card = document.createElement('div');
+  card.className = 'summary-card';
+  card.innerHTML = `
+    <div class="summary-header">
+      <div class="summary-title-row">
+        <span class="summary-label">Article intelligence brief</span>
+        <button class="action-btn" onclick="copySummary(this)">Copy brief</button>
+      </div>
+    </div>
+
+    <div class="summary-section">
+      <div class="summary-section-label">TL;DR</div>
+      <div class="summary-tldr">${escapeHtml(summary.tldr)}</div>
+    </div>
+
+    <div class="summary-section">
+      <div class="summary-section-label">Key facts</div>
+      <ul class="summary-facts">
+        ${(summary.facts || []).map(f => `<li>${escapeHtml(f)}</li>`).join('')}
+      </ul>
+    </div>
+
+    <div class="summary-section">
+      <div class="summary-section-label">Why it matters to FQHCs</div>
+      <div class="summary-why">${escapeHtml(summary.why)}</div>
+    </div>
+
+    <div class="summary-section">
+      <div class="summary-section-label">Suggested hashtags</div>
+      <div class="summary-hashtags">
+        ${(summary.hashtags || []).map(h => `<span class="hashtag-chip">${escapeHtml(h)}</span>`).join('')}
+      </div>
+    </div>
+  `;
+
+  card.dataset.summaryText = [
+    'ARTICLE INTELLIGENCE BRIEF',
+    '',
+    'TL;DR',
+    summary.tldr,
+    '',
+    'KEY FACTS',
+    (summary.facts || []).map(f => '• ' + f).join('\n'),
+    '',
+    'WHY IT MATTERS TO FQHCs',
+    summary.why,
+    '',
+    'SUGGESTED HASHTAGS',
+    (summary.hashtags || []).join(' ')
+  ].join('\n');
+
+  container.appendChild(card);
+
+  const divider = document.createElement('div');
+  divider.className = 'summary-divider';
+  divider.textContent = 'Generated posts';
+  container.appendChild(divider);
+}
+
+function copySummary(btn) {
+  const card = btn.closest('.summary-card');
+  const text = card.dataset.summaryText || '';
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy brief'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+async function generateSummary(content, source, apiKey) {
+  const summaryPrompt = `Analyze this FQHC-related article or alert and return a structured intelligence brief.
+
+CONTENT:
+${content}
+${source ? '\nSOURCE: ' + source : ''}
+
+Respond with ONLY a valid JSON object — no markdown, no explanation, no code fences:
+{
+  "tldr": "1-2 sentence plain-language summary of what happened and why it matters",
+  "facts": ["key fact 1", "key fact 2", "key fact 3", "key fact 4"],
+  "why": "2-3 sentences explaining the specific implications for Federally Qualified Health Centers — operations, funding, policy, patients, or workforce",
+  "hashtags": ["#FQHC", "#CommunityHealth", "3 to 5 more relevant specific hashtags"]
+}`;
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      messages: [{ role: 'user', content: summaryPrompt }]
+    })
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error?.message || 'API error ' + response.status);
+  }
+
+  const data = await response.json();
+  const raw = (data.content || []).map(b => b.text || '').join('').trim();
+  const clean = raw.replace(/```json|```/g, '').trim();
+  return JSON.parse(clean);
+}
+
 async function saveToGoogleSheet(batch) {
   const scriptUrl = Storage.get('scriptUrl', '');
   if (!scriptUrl) return;
-
   try {
     await fetch(scriptUrl, {
       method: 'POST',
@@ -106,7 +216,6 @@ async function saveToGoogleSheet(batch) {
 async function loadFromGoogleSheet() {
   const scriptUrl = Storage.get('scriptUrl', '');
   if (!scriptUrl) return null;
-
   try {
     const response = await fetch(scriptUrl + '?action=get');
     const data = await response.json();
@@ -133,7 +242,7 @@ async function generatePosts() {
   if (!platforms.length) { showError('Please select at least one platform.'); return; }
 
   const tone = document.getElementById('toneSelect').value;
-  const orgName = 'Afya, by Apiary Labs';
+  const orgName = 'Afya';
 
   const hooks = Storage.get('messagingHooks', []);
   const selectedHookId = parseInt(document.getElementById('hookSelect')?.value);
@@ -147,8 +256,29 @@ async function generatePosts() {
   document.getElementById('emptyState').style.display = 'none';
   container.innerHTML = '';
 
-  const posts = [];
   const timestamp = new Date().toISOString();
+
+  // Step 1: Generate summary first
+  const summaryLoading = document.createElement('div');
+  summaryLoading.className = 'loading-msg';
+  summaryLoading.textContent = 'Analyzing article...';
+  container.appendChild(summaryLoading);
+
+  let summary = null;
+  try {
+    summary = await generateSummary(content, source, apiKey);
+    summaryLoading.remove();
+    renderSummary(summary, container);
+  } catch (err) {
+    summaryLoading.remove();
+    const errDiv = document.createElement('div');
+    errDiv.className = 'error-msg';
+    errDiv.textContent = 'Could not generate summary: ' + err.message;
+    container.appendChild(errDiv);
+  }
+
+  // Step 2: Generate platform posts
+  const posts = [];
 
   for (const platform of platforms) {
     const meta = PLATFORM_META[platform];
@@ -226,6 +356,7 @@ Use \\n for line breaks inside the post text.`;
       url: url || '',
       content,
       hook: activeHook ? activeHook.name : '',
+      summary: summary || null,
       platforms,
       posts
     };
@@ -259,14 +390,8 @@ async function renderHistory() {
 
   let batches = null;
   const scriptUrl = Storage.get('scriptUrl', '');
-
-  if (scriptUrl) {
-    batches = await loadFromGoogleSheet();
-  }
-
-  if (!batches) {
-    batches = Storage.get('postHistory', []);
-  }
+  if (scriptUrl) batches = await loadFromGoogleSheet();
+  if (!batches) batches = Storage.get('postHistory', []);
 
   if (loading) loading.style.display = 'none';
 
@@ -288,6 +413,14 @@ async function renderHistory() {
     const hookBadge = batch.hook
       ? '<span class="hist-badge" style="background:var(--green-50);color:var(--green-800);">Hook: ' + escapeHtml(batch.hook) + '</span>'
       : '';
+
+    const summaryHtml = batch.summary ? `
+      <div class="hist-summary">
+        <div class="hist-summary-label">TL;DR</div>
+        <div class="hist-summary-tldr">${escapeHtml(batch.summary.tldr || '')}</div>
+        <div class="hist-summary-why">${escapeHtml(batch.summary.why || '')}</div>
+      </div>` : '';
+
     const postsHtml = (batch.posts || []).map(function(item) {
       const meta = PLATFORM_META[item.platform] || { label: item.platform, badgeClass: '' };
       return '<div class="post-card" style="margin-bottom:10px;">' +
@@ -308,6 +441,7 @@ async function renderHistory() {
       '</div>' +
       (batch.url ? '<div class="history-url"><a href="' + escapeHtml(batch.url) + '" target="_blank">' + escapeHtml(batch.url) + '</a></div>' : '') +
       '<div class="history-platforms">' + platformBadges + hookBadge + '</div>' +
+      summaryHtml +
       '<button class="history-expand-btn" onclick="this.nextElementSibling.classList.toggle(\'open\'); this.textContent = this.nextElementSibling.classList.contains(\'open\') ? \'Hide posts\' : \'View posts\'">View posts</button>' +
       '<div class="history-posts">' + postsHtml + '</div>' +
       '</div>';
@@ -327,10 +461,7 @@ function saveHook() {
   document.getElementById('hookName').value = '';
   document.getElementById('hookText').value = '';
   document.getElementById('hookStatus').innerHTML = '<span class="status-ok">Hook saved!</span>';
-  setTimeout(() => {
-    const el = document.getElementById('hookStatus');
-    if (el) el.innerHTML = '';
-  }, 2000);
+  setTimeout(() => { const el = document.getElementById('hookStatus'); if (el) el.innerHTML = ''; }, 2000);
   renderHooks();
   populateHookDropdown();
 }
@@ -400,16 +531,12 @@ function saveScriptUrl() {
 }
 
 function saveDefaults() {
-  const orgName = document.getElementById('defaultOrgName').value.trim();
   const tone = document.getElementById('defaultTone').value;
-  Storage.set('userDefaults', { orgName, tone });
+  Storage.set('userDefaults', { tone });
   const composeTone = document.getElementById('toneSelect');
   if (composeTone && tone) composeTone.value = tone;
   document.getElementById('prefsStatus').innerHTML = '<span class="status-ok">Preferences saved.</span>';
-  setTimeout(() => {
-    const el = document.getElementById('prefsStatus');
-    if (el) el.innerHTML = '';
-  }, 3000);
+  setTimeout(() => { const el = document.getElementById('prefsStatus'); if (el) el.innerHTML = ''; }, 3000);
 }
 
 function loadSettings() {
@@ -467,6 +594,7 @@ function init() {
 
 window.generatePosts = generatePosts;
 window.copyPost = copyPost;
+window.copySummary = copySummary;
 window.saveApiKey = saveApiKey;
 window.saveScriptUrl = saveScriptUrl;
 window.saveDefaults = saveDefaults;
