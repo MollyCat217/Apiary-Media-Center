@@ -350,11 +350,17 @@ Use \\n for line breaks inside the post text.`;
     } catch (err) {
       const loadingEl = document.getElementById('loading-' + platform);
       if (loadingEl) loadingEl.remove();
-      if (err.name === 'AbortError') break;
-      const errDiv = document.createElement('div');
-      errDiv.className = 'error-msg';
-      errDiv.textContent = 'Error generating ' + meta.label + ': ' + err.message;
-      container.appendChild(errDiv);
+if (err.name === 'AbortError') {
+      summaryLoading.remove();
+      btn.disabled = false;
+      btn.innerHTML = 'Generate posts <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>';
+      if (stopBtn) stopBtn.style.display = 'none';
+      abortController = null;
+      const note = document.createElement('div');
+      note.className = 'stop-note';
+      note.textContent = 'Generation was stopped. No posts were created. Paste your content and click Generate to try again.';
+      container.appendChild(note);
+      return;
     }
   }
 
