@@ -286,7 +286,8 @@ async function generatePosts() {
   // Step 2: Generate platform posts
   const posts = [];
 
-  for (const platform of platforms) {
+   for (const platform of platforms) {
+    if (!abortController) break;
     const meta = PLATFORM_META[platform];
     const loadingDiv = document.createElement('div');
     loadingDiv.className = 'loading-msg';
