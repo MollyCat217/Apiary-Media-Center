@@ -1,4 +1,5 @@
 'use strict';
+
 let abortController = null;
 
 const PLATFORM_META = {
@@ -181,6 +182,7 @@ Respond with ONLY a valid JSON object — no markdown, no explanation, no code f
       'anthropic-version': '2023-06-01',
       'anthropic-dangerous-direct-browser-access': 'true'
     },
+    signal: abortController ? abortController.signal : undefined,
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1000,
@@ -249,9 +251,12 @@ async function generatePosts() {
   const selectedHookId = parseInt(document.getElementById('hookSelect')?.value);
   const activeHook = hooks.find(h => h.id === selectedHookId) || null;
 
+  abortController = new AbortController();
   const btn = document.getElementById('genBtn');
+  const stopBtn = document.getElementById('stopBtn');
   btn.disabled = true;
   btn.innerHTML = '<span>Generating...</span>';
+  if (stopBtn) stopBtn.style.display = 'inline-flex';
 
   const container = document.getElementById('postsContainer');
   document.getElementById('emptyState').style.display = 'none';
@@ -317,6 +322,7 @@ Use \\n for line breaks inside the post text.`;
           'anthropic-version': '2023-06-01',
           'anthropic-dangerous-direct-browser-access': 'true'
         },
+        signal: abortController ? abortController.signal : undefined,
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
           max_tokens: 2000,
@@ -343,6 +349,7 @@ Use \\n for line breaks inside the post text.`;
     } catch (err) {
       const loadingEl = document.getElementById('loading-' + platform);
       if (loadingEl) loadingEl.remove();
+      if (err.name === 'AbortError') break;
       const errDiv = document.createElement('div');
       errDiv.className = 'error-msg';
       errDiv.textContent = 'Error generating ' + meta.label + ': ' + err.message;
@@ -379,6 +386,30 @@ Use \\n for line breaks inside the post text.`;
 
   btn.disabled = false;
   btn.innerHTML = 'Generate posts <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>';
+  if (stopBtn) stopBtn.style.display = 'none';
+  abortController = null;
+}
+
+function stopGeneration() {
+  if (abortController) {
+    abortController.abort();
+    abortController = null;
+  }
+  const btn = document.getElementById('genBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  if (btn) {
+    btn.disabled = false;
+    btn.innerHTML = 'Generate posts <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>';
+  }
+  if (stopBtn) stopBtn.style.display = 'none';
+  const container = document.getElementById('postsContainer');
+  if (container) {
+    const note = document.createElement('div');
+    note.className = 'stop-note';
+    note.textContent = 'Generation stopped.';
+    container.appendChild(note);
+    setTimeout(() => note.remove(), 3000);
+  }
 }
 
 async function renderHistory() {
@@ -596,6 +627,7 @@ function init() {
 window.generatePosts = generatePosts;
 window.copyPost = copyPost;
 window.copySummary = copySummary;
+window.stopGeneration = stopGeneration;
 window.saveApiKey = saveApiKey;
 window.saveScriptUrl = saveScriptUrl;
 window.saveDefaults = saveDefaults;
