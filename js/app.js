@@ -1,4 +1,5 @@
 'use strict';
+let abortController = null;
 
 const PLATFORM_META = {
   fb_page: {
