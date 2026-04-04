@@ -55,6 +55,29 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+function resetButtons() {
+  const btn = document.getElementById('genBtn');
+  const stopBtn = document.getElementById('stopBtn');
+  if (btn) {
+    btn.disabled = false;
+    btn.innerHTML = 'Generate posts <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>';
+  }
+  if (stopBtn) stopBtn.style.display = 'none';
+  abortController = null;
+}
+
+function stopGeneration() {
+  if (abortController) abortController.abort();
+  resetButtons();
+  const container = document.getElementById('postsContainer');
+  if (container) {
+    const note = document.createElement('div');
+    note.className = 'stop-note';
+    note.textContent = 'Generation was stopped. Any posts already created above have been saved. Paste your content and click Generate to try again.';
+    container.appendChild(note);
+  }
+}
+
 function appendPost(item, container) {
   const meta = PLATFORM_META[item.platform] || { label: item.platform, badgeClass: '' };
   const card = document.createElement('div');
@@ -99,24 +122,20 @@ function renderSummary(summary, container) {
         <button class="action-btn" onclick="copySummary(this)">Copy brief</button>
       </div>
     </div>
-
     <div class="summary-section">
       <div class="summary-section-label">TL;DR</div>
       <div class="summary-tldr">${escapeHtml(summary.tldr)}</div>
     </div>
-
     <div class="summary-section">
       <div class="summary-section-label">Key facts</div>
       <ul class="summary-facts">
         ${(summary.facts || []).map(f => `<li>${escapeHtml(f)}</li>`).join('')}
       </ul>
     </div>
-
     <div class="summary-section">
       <div class="summary-section-label">Why it matters to FQHCs</div>
       <div class="summary-why">${escapeHtml(summary.why)}</div>
     </div>
-
     <div class="summary-section">
       <div class="summary-section-label">Suggested hashtags</div>
       <div class="summary-hashtags">
@@ -263,8 +282,9 @@ async function generatePosts() {
   container.innerHTML = '';
 
   const timestamp = new Date().toISOString();
+  const posts = [];
 
-  // Step 1: Generate summary first
+  // Step 1: Generate summary
   const summaryLoading = document.createElement('div');
   summaryLoading.className = 'loading-msg';
   summaryLoading.textContent = 'Analyzing article...';
@@ -277,6 +297,14 @@ async function generatePosts() {
     renderSummary(summary, container);
   } catch (err) {
     summaryLoading.remove();
+    if (err.name === 'AbortError') {
+      const note = document.createElement('div');
+      note.className = 'stop-note';
+      note.textContent = 'Generation was stopped. No posts were created. Paste your content and click Generate to try again.';
+      container.appendChild(note);
+      resetButtons();
+      return;
+    }
     const errDiv = document.createElement('div');
     errDiv.className = 'error-msg';
     errDiv.textContent = 'Could not generate summary: ' + err.message;
@@ -284,10 +312,9 @@ async function generatePosts() {
   }
 
   // Step 2: Generate platform posts
-  const posts = [];
-
-   for (const platform of platforms) {
+  for (const platform of platforms) {
     if (!abortController) break;
+
     const meta = PLATFORM_META[platform];
     const loadingDiv = document.createElement('div');
     loadingDiv.className = 'loading-msg';
@@ -301,7 +328,7 @@ CONTENT:
 ${content}
 ${source ? '\nSOURCE: ' + source : ''}
 ${url ? '\nURL: ' + url : ''}
-${orgName ? '\nPOSTING ON BEHALF OF: ' + orgName : ''}
+POSTING ON BEHALF OF: ${orgName}
 
 TONE: ${TONE_DESCRIPTIONS[tone]}
 ${activeHook ? '\nMESSAGING HOOK — weave this angle into the post: ' + activeHook.text : ''}
@@ -350,17 +377,17 @@ Use \\n for line breaks inside the post text.`;
     } catch (err) {
       const loadingEl = document.getElementById('loading-' + platform);
       if (loadingEl) loadingEl.remove();
-if (err.name === 'AbortError') {
-      summaryLoading.remove();
-      btn.disabled = false;
-      btn.innerHTML = 'Generate posts <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>';
-      if (stopBtn) stopBtn.style.display = 'none';
-      abortController = null;
-      const note = document.createElement('div');
-      note.className = 'stop-note';
-      note.textContent = 'Generation was stopped. No posts were created. Paste your content and click Generate to try again.';
-      container.appendChild(note);
-      return;
+      if (err.name === 'AbortError') {
+        const note = document.createElement('div');
+        note.className = 'stop-note';
+        note.textContent = 'Generation was stopped. Any posts already created above have been saved.';
+        container.appendChild(note);
+        break;
+      }
+      const errDiv = document.createElement('div');
+      errDiv.className = 'error-msg';
+      errDiv.textContent = 'Error generating ' + meta.label + ': ' + err.message;
+      container.appendChild(errDiv);
     }
   }
 
@@ -375,9 +402,7 @@ if (err.name === 'AbortError') {
       platforms,
       posts
     };
-
     await saveToGoogleSheet(batch);
-
     const history = Storage.get('postHistory', []);
     history.unshift(batch);
     Storage.set('postHistory', history.slice(0, 50));
@@ -391,32 +416,7 @@ if (err.name === 'AbortError') {
     setTimeout(() => saveStatus.remove(), 3000);
   }
 
-  btn.disabled = false;
-  btn.innerHTML = 'Generate posts <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>';
-  if (stopBtn) stopBtn.style.display = 'none';
-  abortController = null;
-}
-
-function stopGeneration() {
-  if (abortController) {
-    abortController.abort();
-    abortController = null;
-  }
-  const btn = document.getElementById('genBtn');
-  const stopBtn = document.getElementById('stopBtn');
-  if (btn) {
-    btn.disabled = false;
-    btn.innerHTML = 'Generate posts <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>';
-  }
-  if (stopBtn) stopBtn.style.display = 'none';
-  const container = document.getElementById('postsContainer');
-  if (container) {
-    const note = document.createElement('div');
-    note.className = 'stop-note';
-    note.textContent = 'Generation stopped.';
-    container.appendChild(note);
-    setTimeout(() => note.remove(), 3000);
-  }
+  resetButtons();
 }
 
 async function renderHistory() {
@@ -434,7 +434,7 @@ async function renderHistory() {
 
   if (loading) loading.style.display = 'none';
 
-  if (!batches.length) {
+  if (!batches || !batches.length) {
     if (empty) empty.style.display = 'flex';
     return;
   }
@@ -452,14 +452,12 @@ async function renderHistory() {
     const hookBadge = batch.hook
       ? '<span class="hist-badge" style="background:var(--green-50);color:var(--green-800);">Hook: ' + escapeHtml(batch.hook) + '</span>'
       : '';
-
     const summaryHtml = batch.summary ? `
       <div class="hist-summary">
         <div class="hist-summary-label">TL;DR</div>
         <div class="hist-summary-tldr">${escapeHtml(batch.summary.tldr || '')}</div>
         <div class="hist-summary-why">${escapeHtml(batch.summary.why || '')}</div>
       </div>` : '';
-
     const postsHtml = (batch.posts || []).map(function(item) {
       const meta = PLATFORM_META[item.platform] || { label: item.platform, badgeClass: '' };
       return '<div class="post-card" style="margin-bottom:10px;">' +
@@ -470,9 +468,7 @@ async function renderHistory() {
         '<div class="post-body">' + escapeHtml(item.post) + '</div>' +
         '</div>';
     }).join('');
-
     const snippet = batch.contentSnippet || (batch.content ? batch.content.slice(0, 120) : '');
-
     return '<div class="history-card">' +
       '<div class="history-meta">' +
       '<div class="history-title">' + escapeHtml(batch.source || 'Untitled') + (snippet ? ' — ' + escapeHtml(snippet) + '...' : '') + '</div>' +
