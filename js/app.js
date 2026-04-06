@@ -521,11 +521,14 @@ async function deleteHook(id) {
   const scriptUrl = Storage.get('scriptUrl', '');
   if (scriptUrl) {
     try {
+
 const deleteParams = new URLSearchParams({
   action: 'deleteHook',
   id: id
 });
-await fetch(scriptUrl + '?' + deleteParams.toString());
+const deleteUrl = scriptUrl + '?' + deleteParams.toString();
+await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(deleteUrl));
+      
     } catch (err) {
       console.warn('Could not delete hook from Sheet:', err.message);
     }
