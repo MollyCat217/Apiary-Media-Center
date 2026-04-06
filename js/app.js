@@ -493,12 +493,11 @@ async function saveHook() {
   const scriptUrl = Storage.get('scriptUrl', '');
   if (scriptUrl) {
     try {
-      await fetch(scriptUrl, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'saveHook', hook })
-      });
+ await fetch(scriptUrl, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ action: 'saveHook', hook })
+});
     } catch (err) {
       console.warn('Could not save hook to Sheet:', err.message);
     }
