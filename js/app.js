@@ -493,14 +493,8 @@ async function saveHook() {
   const scriptUrl = Storage.get('scriptUrl', '');
   if (scriptUrl) {
     try {
-const saveParams = new URLSearchParams({
-  action: 'saveHook',
-  id: hook.id,
-  name: hook.name,
-  text: hook.text
-});
-const saveUrl = scriptUrl + '?' + saveParams.toString();
-await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(saveUrl));  
+      const saveParams = new URLSearchParams({ action: 'saveHook', id: hook.id, name: hook.name, text: hook.text });
+      await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(scriptUrl + '?' + saveParams.toString()));
     } catch (err) {
       console.warn('Could not save hook to Sheet:', err.message);
     }
@@ -521,14 +515,8 @@ async function deleteHook(id) {
   const scriptUrl = Storage.get('scriptUrl', '');
   if (scriptUrl) {
     try {
-
-const deleteParams = new URLSearchParams({
-  action: 'deleteHook',
-  id: id
-});
-const deleteUrl = scriptUrl + '?' + deleteParams.toString();
-await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(deleteUrl));
-      
+      const deleteParams = new URLSearchParams({ action: 'deleteHook', id: id });
+      await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(scriptUrl + '?' + deleteParams.toString()));
     } catch (err) {
       console.warn('Could not delete hook from Sheet:', err.message);
     }
@@ -546,10 +534,10 @@ async function renderHooks() {
   const scriptUrl = Storage.get('scriptUrl', '');
   if (scriptUrl) {
     try {
-const response = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(scriptUrl + '?action=getHooks'));
-const wrapper = await response.json();
-const data = JSON.parse(wrapper.contents);
-    
+      const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(scriptUrl + '?action=getHooks');
+      const response = await fetch(proxyUrl);
+      const wrapper = await response.json();
+      const data = JSON.parse(wrapper.contents);
       if (data.success && data.hooks && data.hooks.length) {
         Storage.set('messagingHooks', data.hooks);
       }
