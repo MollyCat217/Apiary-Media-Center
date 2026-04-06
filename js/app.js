@@ -129,7 +129,7 @@ function renderSummary(summary, container) {
     <div class="summary-section">
       <div class="summary-section-label">Key facts</div>
       <ul class="summary-facts">
-        ${(summary.facts || []).map(f => `<li>${escapeHtml(f)}</li>`).join('')}
+        ${(summary.facts || []).map(f => '<li>' + escapeHtml(f) + '</li>').join('')}
       </ul>
     </div>
     <div class="summary-section">
@@ -139,7 +139,7 @@ function renderSummary(summary, container) {
     <div class="summary-section">
       <div class="summary-section-label">Suggested hashtags</div>
       <div class="summary-hashtags">
-        ${(summary.hashtags || []).map(h => `<span class="hashtag-chip">${escapeHtml(h)}</span>`).join('')}
+        ${(summary.hashtags || []).map(h => '<span class="hashtag-chip">' + escapeHtml(h) + '</span>').join('')}
       </div>
     </div>
   `;
@@ -284,7 +284,6 @@ async function generatePosts() {
   const timestamp = new Date().toISOString();
   const posts = [];
 
-  // Step 1: Generate summary
   const summaryLoading = document.createElement('div');
   summaryLoading.className = 'loading-msg';
   summaryLoading.textContent = 'Analyzing article...';
@@ -311,7 +310,6 @@ async function generatePosts() {
     container.appendChild(errDiv);
   }
 
-  // Step 2: Generate platform posts
   for (const platform of platforms) {
     if (!abortController) break;
 
@@ -445,19 +443,16 @@ async function renderHistory() {
       month: 'short', day: 'numeric', year: 'numeric',
       hour: '2-digit', minute: '2-digit'
     });
-    const platforms = batch.platforms || [...new Set((batch.posts || []).map(p => p.platform))];
+    const platforms = batch.platforms || [];
     const platformBadges = platforms
       .map(p => '<span class="hist-badge">' + (PLATFORM_META[p] ? PLATFORM_META[p].label : p) + '</span>')
       .join('');
     const hookBadge = batch.hook
       ? '<span class="hist-badge" style="background:var(--green-50);color:var(--green-800);">Hook: ' + escapeHtml(batch.hook) + '</span>'
       : '';
-    const summaryHtml = batch.summary ? `
-      <div class="hist-summary">
-        <div class="hist-summary-label">TL;DR</div>
-        <div class="hist-summary-tldr">${escapeHtml(batch.summary.tldr || '')}</div>
-        <div class="hist-summary-why">${escapeHtml(batch.summary.why || '')}</div>
-      </div>` : '';
+    const summaryHtml = batch.summary
+      ? '<div class="hist-summary"><div class="hist-summary-label">TL;DR</div><div class="hist-summary-tldr">' + escapeHtml(batch.summary.tldr || '') + '</div><div class="hist-summary-why">' + escapeHtml(batch.summary.why || '') + '</div></div>'
+      : '';
     const postsHtml = (batch.posts || []).map(function(item) {
       const meta = PLATFORM_META[item.platform] || { label: item.platform, badgeClass: '' };
       return '<div class="post-card" style="margin-bottom:10px;">' +
@@ -483,16 +478,32 @@ async function renderHistory() {
   }).join('');
 }
 
-function saveHook() {
+async function saveHook() {
   const name = document.getElementById('hookName').value.trim();
   const text = document.getElementById('hookText').value.trim();
   if (!name || !text) {
     document.getElementById('hookStatus').innerHTML = '<span class="status-err">Please fill in both fields.</span>';
     return;
   }
+  const hook = { id: Date.now(), name, text };
   const hooks = Storage.get('messagingHooks', []);
-  hooks.push({ id: Date.now(), name, text });
+  hooks.push(hook);
   Storage.set('messagingHooks', hooks);
+
+  const scriptUrl = Storage.get('scriptUrl', '');
+  if (scriptUrl) {
+    try {
+      await fetch(scriptUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'saveHook', hook })
+      });
+    } catch (err) {
+      console.warn('Could not save hook to Sheet:', err.message);
+    }
+  }
+
   document.getElementById('hookName').value = '';
   document.getElementById('hookText').value = '';
   document.getElementById('hookStatus').innerHTML = '<span class="status-ok">Hook saved!</span>';
@@ -501,33 +512,63 @@ function saveHook() {
   populateHookDropdown();
 }
 
-function deleteHook(id) {
+async function deleteHook(id) {
   const hooks = Storage.get('messagingHooks', []).filter(h => h.id !== id);
   Storage.set('messagingHooks', hooks);
+
+  const scriptUrl = Storage.get('scriptUrl', '');
+  if (scriptUrl) {
+    try {
+      await fetch(scriptUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'deleteHook', id })
+      });
+    } catch (err) {
+      console.warn('Could not delete hook from Sheet:', err.message);
+    }
+  }
+
   renderHooks();
   populateHookDropdown();
 }
 
-function renderHooks() {
-  const hooks = Storage.get('messagingHooks', []);
+async function renderHooks() {
   const list = document.getElementById('hooksList');
   const empty = document.getElementById('hooksEmpty');
   if (!list) return;
+
+  const scriptUrl = Storage.get('scriptUrl', '');
+  if (scriptUrl) {
+    try {
+      const response = await fetch(scriptUrl + '?action=getHooks');
+      const data = await response.json();
+      if (data.success && data.hooks && data.hooks.length) {
+        Storage.set('messagingHooks', data.hooks);
+      }
+    } catch (err) {
+      console.warn('Could not load hooks from Sheet:', err.message);
+    }
+  }
+
+  const hooks = Storage.get('messagingHooks', []);
   if (!hooks.length) {
     list.innerHTML = '';
     if (empty) empty.style.display = 'flex';
     return;
   }
   if (empty) empty.style.display = 'none';
-  list.innerHTML = hooks.map(hook => `
-    <div class="hook-card">
-      <div class="hook-card-top">
-        <div class="hook-name">${escapeHtml(hook.name)}</div>
-        <button class="delete-btn" onclick="deleteHook(${hook.id})">Remove</button>
-      </div>
-      <div class="hook-text">${escapeHtml(hook.text)}</div>
-    </div>
-  `).join('');
+  list.innerHTML = hooks.map(hook =>
+    '<div class="hook-card">' +
+    '<div class="hook-card-top">' +
+    '<div class="hook-name">' + escapeHtml(hook.name) + '</div>' +
+    '<button class="delete-btn" onclick="deleteHook(' + hook.id + ')">Remove</button>' +
+    '</div>' +
+    '<div class="hook-text">' + escapeHtml(hook.text) + '</div>' +
+    '</div>'
+  ).join('');
+  populateHookDropdown();
 }
 
 function populateHookDropdown() {
@@ -624,7 +665,7 @@ function init() {
     const el = document.getElementById('toneSelect');
     if (el) el.value = defaults.tone;
   }
-  populateHookDropdown();
+  renderHooks();
 }
 
 window.generatePosts = generatePosts;
