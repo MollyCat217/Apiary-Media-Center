@@ -499,8 +499,8 @@ const saveParams = new URLSearchParams({
   name: hook.name,
   text: hook.text
 });
-await fetch(scriptUrl + '?' + saveParams.toString());
-      
+const saveUrl = scriptUrl + '?' + saveParams.toString();
+await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(saveUrl));  
     } catch (err) {
       console.warn('Could not save hook to Sheet:', err.message);
     }
