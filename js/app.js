@@ -521,11 +521,11 @@ async function deleteHook(id) {
   const scriptUrl = Storage.get('scriptUrl', '');
   if (scriptUrl) {
     try {
-      await fetch(scriptUrl, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ action: 'deleteHook', id })
+const deleteParams = new URLSearchParams({
+  action: 'deleteHook',
+  id: id
 });
+await fetch(scriptUrl + '?' + deleteParams.toString());
     } catch (err) {
       console.warn('Could not delete hook from Sheet:', err.message);
     }
