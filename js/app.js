@@ -546,8 +546,10 @@ async function renderHooks() {
   const scriptUrl = Storage.get('scriptUrl', '');
   if (scriptUrl) {
     try {
-      const response = await fetch(scriptUrl + '?action=getHooks');
-      const data = await response.json();
+const response = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(scriptUrl + '?action=getHooks'));
+const wrapper = await response.json();
+const data = JSON.parse(wrapper.contents);
+    
       if (data.success && data.hooks && data.hooks.length) {
         Storage.set('messagingHooks', data.hooks);
       }
