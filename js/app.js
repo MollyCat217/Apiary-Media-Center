@@ -519,11 +519,10 @@ async function deleteHook(id) {
   if (scriptUrl) {
     try {
       await fetch(scriptUrl, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'deleteHook', id })
-      });
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ action: 'deleteHook', id })
+});
     } catch (err) {
       console.warn('Could not delete hook from Sheet:', err.message);
     }
