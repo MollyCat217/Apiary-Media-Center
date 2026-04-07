@@ -539,6 +539,7 @@ async function renderHooks() {
       const data = await response.json();
       if (data.success && data.hooks && data.hooks.length) {
         Storage.set('messagingHooks', data.hooks);
+        populateHookDropdown();
       }
     } catch (err) {
       console.warn('Could not load hooks from Sheet:', err.message);
@@ -651,14 +652,15 @@ function initNav() {
   });
 }
 
-function init() {
+async function init() {
   initNav();
   const defaults = Storage.get('userDefaults', {});
   if (defaults.tone) {
     const el = document.getElementById('toneSelect');
     if (el) el.value = defaults.tone;
   }
-  renderHooks();
+  populateHookDropdown();
+  await renderHooks();
 }
 
 window.generatePosts = generatePosts;
