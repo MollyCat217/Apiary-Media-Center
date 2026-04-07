@@ -494,7 +494,7 @@ async function saveHook() {
   if (scriptUrl) {
     try {
       const saveParams = new URLSearchParams({ action: 'saveHook', id: hook.id, name: hook.name, text: hook.text });
-      await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(scriptUrl + '?' + saveParams.toString()));
+      await fetch('https://corsproxy.io/?' + encodeURIComponent(scriptUrl + '?' + saveParams.toString()));
     } catch (err) {
       console.warn('Could not save hook to Sheet:', err.message);
     }
@@ -516,7 +516,7 @@ async function deleteHook(id) {
   if (scriptUrl) {
     try {
       const deleteParams = new URLSearchParams({ action: 'deleteHook', id: id });
-      await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(scriptUrl + '?' + deleteParams.toString()));
+      await fetch('https://corsproxy.io/?' + encodeURIComponent(scriptUrl + '?' + deleteParams.toString()));
     } catch (err) {
       console.warn('Could not delete hook from Sheet:', err.message);
     }
@@ -534,10 +534,9 @@ async function renderHooks() {
   const scriptUrl = Storage.get('scriptUrl', '');
   if (scriptUrl) {
     try {
-      const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(scriptUrl + '?action=getHooks');
+      const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(scriptUrl + '?action=getHooks');
       const response = await fetch(proxyUrl);
-      const wrapper = await response.json();
-      const data = JSON.parse(wrapper.contents);
+      const data = await response.json();
       if (data.success && data.hooks && data.hooks.length) {
         Storage.set('messagingHooks', data.hooks);
       }
