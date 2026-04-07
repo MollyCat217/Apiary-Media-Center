@@ -55,6 +55,10 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+function proxyUrl(url) {
+  return 'https://corsproxy.io/?' + encodeURIComponent(url);
+}
+
 function resetButtons() {
   const btn = document.getElementById('genBtn');
   const stopBtn = document.getElementById('stopBtn');
@@ -143,25 +147,14 @@ function renderSummary(summary, container) {
       </div>
     </div>
   `;
-
   card.dataset.summaryText = [
-    'ARTICLE INTELLIGENCE BRIEF',
-    '',
-    'TL;DR',
-    summary.tldr,
-    '',
-    'KEY FACTS',
-    (summary.facts || []).map(f => '• ' + f).join('\n'),
-    '',
-    'WHY IT MATTERS TO FQHCs',
-    summary.why,
-    '',
-    'SUGGESTED HASHTAGS',
-    (summary.hashtags || []).join(' ')
+    'ARTICLE INTELLIGENCE BRIEF', '',
+    'TL;DR', summary.tldr, '',
+    'KEY FACTS', (summary.facts || []).map(f => '• ' + f).join('\n'), '',
+    'WHY IT MATTERS TO FQHCs', summary.why, '',
+    'SUGGESTED HASHTAGS', (summary.hashtags || []).join(' ')
   ].join('\n');
-
   container.appendChild(card);
-
   const divider = document.createElement('div');
   divider.className = 'summary-divider';
   divider.textContent = 'Generated posts';
@@ -208,12 +201,10 @@ Respond with ONLY a valid JSON object — no markdown, no explanation, no code f
       messages: [{ role: 'user', content: summaryPrompt }]
     })
   });
-
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
     throw new Error(err.error?.message || 'API error ' + response.status);
   }
-
   const data = await response.json();
   const raw = (data.content || []).map(b => b.text || '').join('').trim();
   const clean = raw.replace(/```json|```/g, '').trim();
@@ -239,7 +230,7 @@ async function loadFromGoogleSheet() {
   const scriptUrl = Storage.get('scriptUrl', '');
   if (!scriptUrl) return null;
   try {
-    const response = await fetch(scriptUrl + '?action=get');
+    const response = await fetch(proxyUrl(scriptUrl + '?action=get'));
     const data = await response.json();
     if (data.success) return data.batches;
     return null;
@@ -265,7 +256,6 @@ async function generatePosts() {
 
   const tone = document.getElementById('toneSelect').value;
   const orgName = 'Afya';
-
   const hooks = Storage.get('messagingHooks', []);
   const selectedHookId = parseInt(document.getElementById('hookSelect')?.value);
   const activeHook = hooks.find(h => h.id === selectedHookId) || null;
@@ -312,7 +302,6 @@ async function generatePosts() {
 
   for (const platform of platforms) {
     if (!abortController) break;
-
     const meta = PLATFORM_META[platform];
     const loadingDiv = document.createElement('div');
     loadingDiv.className = 'loading-msg';
@@ -356,22 +345,18 @@ Use \\n for line breaks inside the post text.`;
           messages: [{ role: 'user', content: userPrompt }]
         })
       });
-
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
         throw new Error(err.error?.message || 'API error ' + response.status);
       }
-
       const data = await response.json();
       const raw = (data.content || []).map(b => b.text || '').join('').trim();
       const clean = raw.replace(/```json|```/g, '').trim();
       const item = JSON.parse(clean);
       posts.push(item);
-
       const loadingEl = document.getElementById('loading-' + platform);
       if (loadingEl) loadingEl.remove();
       appendPost(item, container);
-
     } catch (err) {
       const loadingEl = document.getElementById('loading-' + platform);
       if (loadingEl) loadingEl.remove();
@@ -391,25 +376,17 @@ Use \\n for line breaks inside the post text.`;
 
   if (posts.length) {
     const batch = {
-      timestamp,
-      source: source || '',
-      url: url || '',
-      content,
+      timestamp, source: source || '', url: url || '', content,
       hook: activeHook ? activeHook.name : '',
-      summary: summary || null,
-      platforms,
-      posts
+      summary: summary || null, platforms, posts
     };
     await saveToGoogleSheet(batch);
     const history = Storage.get('postHistory', []);
     history.unshift(batch);
     Storage.set('postHistory', history.slice(0, 50));
-
     const saveStatus = document.createElement('div');
     saveStatus.className = 'save-status';
-    saveStatus.textContent = Storage.get('scriptUrl', '')
-      ? 'Saved to Google Sheet'
-      : 'Saved to browser history';
+    saveStatus.textContent = Storage.get('scriptUrl', '') ? 'Saved to Google Sheet' : 'Saved to browser history';
     container.insertBefore(saveStatus, container.firstChild);
     setTimeout(() => saveStatus.remove(), 3000);
   }
@@ -421,27 +398,21 @@ async function renderHistory() {
   const list = document.getElementById('historyList');
   const empty = document.getElementById('historyEmpty');
   const loading = document.getElementById('historyLoading');
-
   if (loading) loading.style.display = 'block';
   if (list) list.innerHTML = '';
-
   let batches = null;
   const scriptUrl = Storage.get('scriptUrl', '');
   if (scriptUrl) batches = await loadFromGoogleSheet();
   if (!batches) batches = Storage.get('postHistory', []);
-
   if (loading) loading.style.display = 'none';
-
   if (!batches || !batches.length) {
     if (empty) empty.style.display = 'flex';
     return;
   }
   if (empty) empty.style.display = 'none';
-
   list.innerHTML = batches.map(function(batch) {
     const date = new Date(batch.timestamp).toLocaleDateString('en-US', {
-      month: 'short', day: 'numeric', year: 'numeric',
-      hour: '2-digit', minute: '2-digit'
+      month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
     });
     const platforms = batch.platforms || [];
     const platformBadges = platforms
@@ -456,25 +427,19 @@ async function renderHistory() {
     const postsHtml = (batch.posts || []).map(function(item) {
       const meta = PLATFORM_META[item.platform] || { label: item.platform, badgeClass: '' };
       return '<div class="post-card" style="margin-bottom:10px;">' +
-        '<div class="post-header">' +
-        '<span class="platform-badge ' + meta.badgeClass + '">' + meta.label + '</span>' +
-        '<button class="action-btn" onclick="copyPost(this, ' + JSON.stringify(item.post) + ')">Copy</button>' +
-        '</div>' +
-        '<div class="post-body">' + escapeHtml(item.post) + '</div>' +
-        '</div>';
+        '<div class="post-header"><span class="platform-badge ' + meta.badgeClass + '">' + meta.label + '</span>' +
+        '<button class="action-btn" onclick="copyPost(this, ' + JSON.stringify(item.post) + ')">Copy</button></div>' +
+        '<div class="post-body">' + escapeHtml(item.post) + '</div></div>';
     }).join('');
     const snippet = batch.contentSnippet || (batch.content ? batch.content.slice(0, 120) : '');
     return '<div class="history-card">' +
-      '<div class="history-meta">' +
-      '<div class="history-title">' + escapeHtml(batch.source || 'Untitled') + (snippet ? ' — ' + escapeHtml(snippet) + '...' : '') + '</div>' +
-      '<div class="history-date">' + date + '</div>' +
-      '</div>' +
+      '<div class="history-meta"><div class="history-title">' + escapeHtml(batch.source || 'Untitled') + (snippet ? ' — ' + escapeHtml(snippet) + '...' : '') + '</div>' +
+      '<div class="history-date">' + date + '</div></div>' +
       (batch.url ? '<div class="history-url"><a href="' + escapeHtml(batch.url) + '" target="_blank">' + escapeHtml(batch.url) + '</a></div>' : '') +
       '<div class="history-platforms">' + platformBadges + hookBadge + '</div>' +
       summaryHtml +
       '<button class="history-expand-btn" onclick="this.nextElementSibling.classList.toggle(\'open\'); this.textContent = this.nextElementSibling.classList.contains(\'open\') ? \'Hide posts\' : \'View posts\'">View posts</button>' +
-      '<div class="history-posts">' + postsHtml + '</div>' +
-      '</div>';
+      '<div class="history-posts">' + postsHtml + '</div></div>';
   }).join('');
 }
 
@@ -493,8 +458,8 @@ async function saveHook() {
   const scriptUrl = Storage.get('scriptUrl', '');
   if (scriptUrl) {
     try {
-      const saveParams = new URLSearchParams({ action: 'saveHook', id: hook.id, name: hook.name, text: hook.text });
-      await fetch('https://corsproxy.io/?' + encodeURIComponent(scriptUrl + '?' + saveParams.toString()));
+      const params = new URLSearchParams({ action: 'saveHook', id: hook.id, name: hook.name, text: hook.text });
+      await fetch(proxyUrl(scriptUrl + '?' + params.toString()));
     } catch (err) {
       console.warn('Could not save hook to Sheet:', err.message);
     }
@@ -504,25 +469,75 @@ async function saveHook() {
   document.getElementById('hookText').value = '';
   document.getElementById('hookStatus').innerHTML = '<span class="status-ok">Hook saved!</span>';
   setTimeout(() => { const el = document.getElementById('hookStatus'); if (el) el.innerHTML = ''; }, 2000);
-  renderHooks();
-  populateHookDropdown();
+  await renderHooks();
 }
 
 async function deleteHook(id) {
-  const hooks = Storage.get('messagingHooks', []).filter(h => h.id !== id);
+  const hooks = Storage.get('messagingHooks', []).filter(h => String(h.id) !== String(id));
   Storage.set('messagingHooks', hooks);
 
   const scriptUrl = Storage.get('scriptUrl', '');
   if (scriptUrl) {
     try {
-      const deleteParams = new URLSearchParams({ action: 'deleteHook', id: id });
-      await fetch('https://corsproxy.io/?' + encodeURIComponent(scriptUrl + '?' + deleteParams.toString()));
+      const params = new URLSearchParams({ action: 'deleteHook', id });
+      await fetch(proxyUrl(scriptUrl + '?' + params.toString()));
     } catch (err) {
       console.warn('Could not delete hook from Sheet:', err.message);
     }
   }
 
-  renderHooks();
+  await renderHooks();
+}
+
+function startEditHook(id) {
+  document.getElementById('hook-text-' + id).style.display = 'none';
+  document.getElementById('hook-edit-' + id).style.display = 'block';
+  const card = document.getElementById('hook-card-' + id);
+  if (card) card.querySelector('.hook-card-actions').style.display = 'none';
+}
+
+function cancelEditHook(id) {
+  document.getElementById('hook-text-' + id).style.display = 'block';
+  document.getElementById('hook-edit-' + id).style.display = 'none';
+  const card = document.getElementById('hook-card-' + id);
+  if (card) card.querySelector('.hook-card-actions').style.display = 'flex';
+}
+
+async function saveEditHook(id) {
+  const nameInput = document.getElementById('hook-edit-name-' + id);
+  const textInput = document.getElementById('hook-edit-text-' + id);
+  if (!nameInput || !textInput) return;
+  const name = nameInput.value.trim();
+  const text = textInput.value.trim();
+  if (!name || !text) return;
+
+  const hooks = Storage.get('messagingHooks', []);
+  const hook = hooks.find(h => String(h.id) === String(id));
+  if (hook) {
+    hook.name = name;
+    hook.text = text;
+    Storage.set('messagingHooks', hooks);
+  }
+
+  const scriptUrl = Storage.get('scriptUrl', '');
+  if (scriptUrl) {
+    try {
+      const params = new URLSearchParams({ action: 'updateHook', id, name, text });
+      await fetch(proxyUrl(scriptUrl + '?' + params.toString()));
+    } catch (err) {
+      console.warn('Could not update hook in Sheet:', err.message);
+    }
+  }
+
+  const card = document.getElementById('hook-card-' + id);
+  if (card) {
+    const nameEl = card.querySelector('.hook-name');
+    const textEl = document.getElementById('hook-text-' + id);
+    if (nameEl) nameEl.textContent = name;
+    if (textEl) textEl.textContent = text;
+  }
+
+  cancelEditHook(id);
   populateHookDropdown();
 }
 
@@ -534,8 +549,7 @@ async function renderHooks() {
   const scriptUrl = Storage.get('scriptUrl', '');
   if (scriptUrl) {
     try {
-      const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(scriptUrl + '?action=getHooks');
-      const response = await fetch(proxyUrl);
+      const response = await fetch(proxyUrl(scriptUrl + '?action=getHooks'));
       const data = await response.json();
       if (data.success && data.hooks && data.hooks.length) {
         Storage.set('messagingHooks', data.hooks);
@@ -558,61 +572,18 @@ async function renderHooks() {
     '<div class="hook-card-top">' +
     '<div class="hook-name">' + escapeHtml(hook.name) + '</div>' +
     '<div class="hook-card-actions">' +
-    '<button class="edit-btn" onclick="startEditHook(' + hook.id + ')">Edit</button>' +
-    '<button class="delete-btn" onclick="deleteHook(' + hook.id + ')">Remove</button>' +
-    '</div>' +
-    '</div>' +
+    '<button class="edit-btn" onclick="startEditHook(\'' + hook.id + '\')">Edit</button>' +
+    '<button class="delete-btn" onclick="deleteHook(\'' + hook.id + '\')">Remove</button>' +
+    '</div></div>' +
     '<div class="hook-text" id="hook-text-' + hook.id + '">' + escapeHtml(hook.text) + '</div>' +
     '<div class="hook-edit-form" id="hook-edit-' + hook.id + '" style="display:none;">' +
     '<input type="text" class="field-input" id="hook-edit-name-' + hook.id + '" value="' + escapeHtml(hook.name) + '" style="margin-bottom:8px;" />' +
     '<textarea class="content-area" id="hook-edit-text-' + hook.id + '" style="min-height:60px;margin-bottom:8px;">' + escapeHtml(hook.text) + '</textarea>' +
     '<div style="display:flex;gap:8px;">' +
-    '<button class="save-btn" onclick="saveEditHook(' + hook.id + ')" style="padding:6px 14px;font-size:12px;">Save</button>' +
-    '<button class="delete-btn" onclick="cancelEditHook(' + hook.id + ')" style="padding:6px 14px;">Cancel</button>' +
-    '</div>' +
-    '</div>' +
-    '</div>'
+    '<button class="save-btn" onclick="saveEditHook(\'' + hook.id + '\')" style="padding:6px 14px;font-size:12px;">Save</button>' +
+    '<button class="delete-btn" onclick="cancelEditHook(\'' + hook.id + '\')" style="padding:6px 14px;">Cancel</button>' +
+    '</div></div></div>'
   ).join('');
-  populateHookDropdown();
-}
-
-function startEditHook(id) {
-  document.getElementById('hook-text-' + id).style.display = 'none';
-  document.getElementById('hook-edit-' + id).style.display = 'block';
-  const card = document.getElementById('hook-card-' + id);
-  card.querySelector('.hook-card-actions').style.display = 'none';
-}
-
-function cancelEditHook(id) {
-  document.getElementById('hook-text-' + id).style.display = 'block';
-  document.getElementById('hook-edit-' + id).style.display = 'none';
-  const card = document.getElementById('hook-card-' + id);
-  card.querySelector('.hook-card-actions').style.display = 'flex';
-}
-
-async function saveEditHook(id) {
-  const name = document.getElementById('hook-edit-name-' + id).value.trim();
-  const text = document.getElementById('hook-edit-text-' + id).value.trim();
-  if (!name || !text) return;
-
-  const hooks = Storage.get('messagingHooks', []);
-  const hook = hooks.find(h => String(h.id) === String(id));
-  if (!hook) return;
-  hook.name = name;
-  hook.text = text;
-  Storage.set('messagingHooks', hooks);
-
-  const scriptUrl = Storage.get('scriptUrl', '');
-  if (scriptUrl) {
-    try {
-      const params = new URLSearchParams({ action: 'updateHook', id, name, text });
-      await fetch('https://corsproxy.io/?' + encodeURIComponent(scriptUrl + '?' + params.toString()));
-    } catch (err) {
-      console.warn('Could not update hook in Sheet:', err.message);
-    }
-  }
-
-  renderHooks();
   populateHookDropdown();
 }
 
@@ -664,22 +635,18 @@ function loadSettings() {
   const apiKey = Storage.get('apiKey', '');
   const input = document.getElementById('apiKeyInput');
   if (input && apiKey) input.value = apiKey;
-
   const scriptUrl = Storage.get('scriptUrl', '');
   const scriptInput = document.getElementById('scriptUrlInput');
   if (scriptInput && scriptUrl) scriptInput.value = scriptUrl;
-
   const defaults = Storage.get('userDefaults', {});
   const toneEl = document.getElementById('defaultTone');
   if (toneEl && defaults.tone) toneEl.value = defaults.tone;
-
   const apiEl = document.getElementById('apiKeyStatus');
   if (apiEl) {
     apiEl.innerHTML = apiKey
       ? '<span class="status-ok">API key is set.</span>'
       : '<span class="status-err">No API key set.</span>';
   }
-
   const sheetEl = document.getElementById('scriptUrlStatus');
   if (sheetEl) {
     sheetEl.innerHTML = scriptUrl
