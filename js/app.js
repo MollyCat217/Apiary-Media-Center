@@ -554,14 +554,65 @@ async function renderHooks() {
   }
   if (empty) empty.style.display = 'none';
   list.innerHTML = hooks.map(hook =>
-    '<div class="hook-card">' +
+    '<div class="hook-card" id="hook-card-' + hook.id + '">' +
     '<div class="hook-card-top">' +
     '<div class="hook-name">' + escapeHtml(hook.name) + '</div>' +
+    '<div class="hook-card-actions">' +
+    '<button class="edit-btn" onclick="startEditHook(' + hook.id + ')">Edit</button>' +
     '<button class="delete-btn" onclick="deleteHook(' + hook.id + ')">Remove</button>' +
     '</div>' +
-    '<div class="hook-text">' + escapeHtml(hook.text) + '</div>' +
+    '</div>' +
+    '<div class="hook-text" id="hook-text-' + hook.id + '">' + escapeHtml(hook.text) + '</div>' +
+    '<div class="hook-edit-form" id="hook-edit-' + hook.id + '" style="display:none;">' +
+    '<input type="text" class="field-input" id="hook-edit-name-' + hook.id + '" value="' + escapeHtml(hook.name) + '" style="margin-bottom:8px;" />' +
+    '<textarea class="content-area" id="hook-edit-text-' + hook.id + '" style="min-height:60px;margin-bottom:8px;">' + escapeHtml(hook.text) + '</textarea>' +
+    '<div style="display:flex;gap:8px;">' +
+    '<button class="save-btn" onclick="saveEditHook(' + hook.id + ')" style="padding:6px 14px;font-size:12px;">Save</button>' +
+    '<button class="delete-btn" onclick="cancelEditHook(' + hook.id + ')" style="padding:6px 14px;">Cancel</button>' +
+    '</div>' +
+    '</div>' +
     '</div>'
   ).join('');
+  populateHookDropdown();
+}
+
+function startEditHook(id) {
+  document.getElementById('hook-text-' + id).style.display = 'none';
+  document.getElementById('hook-edit-' + id).style.display = 'block';
+  const card = document.getElementById('hook-card-' + id);
+  card.querySelector('.hook-card-actions').style.display = 'none';
+}
+
+function cancelEditHook(id) {
+  document.getElementById('hook-text-' + id).style.display = 'block';
+  document.getElementById('hook-edit-' + id).style.display = 'none';
+  const card = document.getElementById('hook-card-' + id);
+  card.querySelector('.hook-card-actions').style.display = 'flex';
+}
+
+async function saveEditHook(id) {
+  const name = document.getElementById('hook-edit-name-' + id).value.trim();
+  const text = document.getElementById('hook-edit-text-' + id).value.trim();
+  if (!name || !text) return;
+
+  const hooks = Storage.get('messagingHooks', []);
+  const hook = hooks.find(h => String(h.id) === String(id));
+  if (!hook) return;
+  hook.name = name;
+  hook.text = text;
+  Storage.set('messagingHooks', hooks);
+
+  const scriptUrl = Storage.get('scriptUrl', '');
+  if (scriptUrl) {
+    try {
+      const params = new URLSearchParams({ action: 'updateHook', id, name, text });
+      await fetch('https://corsproxy.io/?' + encodeURIComponent(scriptUrl + '?' + params.toString()));
+    } catch (err) {
+      console.warn('Could not update hook in Sheet:', err.message);
+    }
+  }
+
+  renderHooks();
   populateHookDropdown();
 }
 
@@ -672,5 +723,8 @@ window.saveScriptUrl = saveScriptUrl;
 window.saveDefaults = saveDefaults;
 window.saveHook = saveHook;
 window.deleteHook = deleteHook;
+window.startEditHook = startEditHook;
+window.cancelEditHook = cancelEditHook;
+window.saveEditHook = saveEditHook;
 
 document.addEventListener('DOMContentLoaded', init);
