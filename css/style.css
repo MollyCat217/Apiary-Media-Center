@@ -28,6 +28,7 @@
   --pastel-teal: #7AD0C7;
 }
 
+
 body {
   font-family: var(--font-sans);
   font-size: 14px;
@@ -862,4 +863,33 @@ body {
   text-align: center;
   padding: 8px;
   margin-top: 8px;
+}
+
+/* ── HOOK EDIT ───────────────────────────────── */
+
+.hook-card-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.edit-btn {
+  font-size: 11px;
+  padding: 3px 10px;
+  border: 1px solid var(--sand-300);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  color: var(--green-800);
+  cursor: pointer;
+  font-family: var(--font-sans);
+}
+
+.edit-btn:hover {
+  background: var(--green-50);
+  border-color: var(--green-600);
+}
+
+.hook-edit-form {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--sand-200);
 }
