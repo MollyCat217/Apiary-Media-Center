@@ -891,8 +891,7 @@ const articleHook = articleHooks.find(h => h.id === articleHookId) || null;
 
   const prompt = `You are an expert healthcare content writer with deep knowledge of the FQHC ecosystem: HRSA funding, NACHC, state PCAs, 340B Drug Pricing Program, Medicaid, value-based care, workforce, and health equity. You write for Afya, a company that helps FQHCs capture revenue through automated care coordination documentation.
 
-Write content based on the sources below for an FQHC audience. The content should be authoritative, specific, and genuinely useful. Never generic.
-
+Write content that synthesizes ALL of the sources below into a single cohesive piece for an FQHC audience. Every source must contribute meaningfully to the article — do not focus on just one source and ignore the others. Draw connections between sources, highlight agreements or tensions between them, and build a narrative that could only exist by combining all of them together. The content should be authoritative, specific, and genuinely useful. Never generic.
 ${sourcesBlock}
 ${articleHook ? '\nMESSAGING HOOK — weave this angle throughout the article: ' + articleHook.text : ''}
 ${angle ? '\nCUSTOM ANGLE / BRIEF: ' + angle : ''}
