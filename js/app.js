@@ -926,7 +926,7 @@ const articleHook = articleHooks.find(h => h.id === articleHookId) || null;
 
 Write content that synthesizes ALL of the sources below into a single cohesive piece for an FQHC audience. Every source must contribute meaningfully to the article — do not focus on just one source and ignore the others. Draw connections between sources only where those connections are clearly supported by the source material itself. Do not invent connections or introduce topics not present in the sources. Write content based STRICTLY AND ONLY on the sources provided below. Every claim, fact, statistic, and assertion in the article must come directly from the source material. Do not invent examples, fabricate statistics, add outside knowledge, or make connections that are not explicitly supported by the sources. If a source does not contain enough information to support a claim, do not make that claim. Stay grounded in what the sources actually say.
 ${articleHook ? '\nMESSAGING HOOK — weave this angle throughout the article: ' + articleHook.text : ''}
-${angle ? '\nCUSTOM ANGLE / BRIEF: ' + angle : ''}
+${angle ? '\nMESSAGING ANGLE: Use this to guide the editorial direction and emphasis of the article only. Do not introduce any topics, examples, or claims from this angle that are not already supported by the source material above: ' + angle : ''}
 CONTENT TYPE: ${meta.label} (${meta.wordCount})
 
 INSTRUCTIONS:
