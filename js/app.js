@@ -784,6 +784,23 @@ async function init() {
   await renderHooks();
 }
 
+function clearArticleFields() {
+  document.querySelectorAll('.source-content').forEach(el => el.value = '');
+  document.querySelectorAll('.source-org').forEach(el => el.value = '');
+  document.querySelectorAll('.source-url').forEach(el => el.value = '');
+
+  const extraBlocks = document.querySelectorAll('.source-block:not(:first-child)');
+  extraBlocks.forEach(el => el.remove());
+  renumberSources();
+
+  document.getElementById('articleAngle').value = '';
+  document.getElementById('articleHookSelect').value = '';
+  document.getElementById('articleType').value = 'blog';
+  document.getElementById('articleResults').innerHTML = '';
+  document.getElementById('articleEmpty').style.display = 'flex';
+  document.getElementById('articleClearBtn').style.display = 'none';
+}
+
 window.generatePosts = generatePosts;
 window.copyPost = copyPost;
 window.copySummary = copySummary;
