@@ -818,6 +818,7 @@ window.generateArticle = generateArticle;
 window.copyArticleSection = copyArticleSection;
 window.addSource = addSource;
 window.removeSource = removeSource;
+window.clearArticleFields = clearArticleFields;
 
 function addSource() {
   const container = document.getElementById('sourcesContainer');
