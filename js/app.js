@@ -653,18 +653,33 @@ async function renderHooks() {
 }
 
 function populateHookDropdown() {
-  const select = document.getElementById('hookSelect');
-  if (!select) return;
   const hooks = Storage.get(hooksStorageKey(), []);
-  const current = select.value;
-  select.innerHTML = '<option value="">No hook — use tone only</option>';
-  hooks.forEach(hook => {
-    const opt = document.createElement('option');
-    opt.value = hook.id;
-    opt.textContent = hook.name;
-    select.appendChild(opt);
-  });
-  select.value = current;
+
+  const select = document.getElementById('hookSelect');
+  if (select) {
+    const current = select.value;
+    select.innerHTML = '<option value="">No hook — use tone only</option>';
+    hooks.forEach(hook => {
+      const opt = document.createElement('option');
+      opt.value = hook.id;
+      opt.textContent = hook.name;
+      select.appendChild(opt);
+    });
+    select.value = current;
+  }
+
+  const articleSelect = document.getElementById('articleHookSelect');
+  if (articleSelect) {
+    const articleCurrent = articleSelect.value;
+    articleSelect.innerHTML = '<option value="">No hook — use angle only</option>';
+    hooks.forEach(hook => {
+      const opt = document.createElement('option');
+      opt.value = hook.id;
+      opt.textContent = hook.name;
+      articleSelect.appendChild(opt);
+    });
+    articleSelect.value = articleCurrent;
+  }
 }
 
 function saveApiKey() {
