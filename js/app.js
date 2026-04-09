@@ -864,7 +864,10 @@ async function generateArticle() {
     return;
   }
 
-  const angle = document.getElementById('articleAngle').value.trim();
+const angle = document.getElementById('articleAngle').value.trim();
+const articleHooks = Storage.get('messagingHooks', []);
+const articleHookId = parseInt(document.getElementById('articleHookSelect')?.value);
+const articleHook = articleHooks.find(h => h.id === articleHookId) || null;
   const type = document.getElementById('articleType').value;
   const meta = ARTICLE_TYPES[type];
 
