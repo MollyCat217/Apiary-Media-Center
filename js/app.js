@@ -894,8 +894,8 @@ const articleHook = articleHooks.find(h => h.id === articleHookId) || null;
 Write content based on the sources below for an FQHC audience. The content should be authoritative, specific, and genuinely useful. Never generic.
 
 ${sourcesBlock}
+${articleHook ? '\nMESSAGING HOOK — weave this angle throughout the article: ' + articleHook.text : ''}
 ${angle ? '\nCUSTOM ANGLE / BRIEF: ' + angle : ''}
-
 CONTENT TYPE: ${meta.label} (${meta.wordCount})
 
 INSTRUCTIONS:
