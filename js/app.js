@@ -1017,6 +1017,8 @@ Respond with ONLY a valid JSON object — no markdown, no explanation, no code f
   btn.innerHTML = 'Generate article <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>';
   if (stopBtn) stopBtn.style.display = 'none';
   abortController = null;
+  const clearBtn = document.getElementById('articleClearBtn');
+if (clearBtn) clearBtn.style.display = 'inline-flex';
 }
 
 function renderArticle(article, meta, container) {
