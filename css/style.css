@@ -27,7 +27,6 @@
   --mint: #A9EACF;
   --pastel-teal: #7AD0C7;
 }
-
 body {
   font-family: var(--font-sans);
   font-size: 14px;
