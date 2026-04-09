@@ -1050,6 +1050,30 @@ body {
   transition: background 0.15s;
 }
 
+.clear-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 20px;
+  background: var(--white);
+  color: var(--ink-500);
+  border: 1px solid var(--sand-300);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-top: 8px;
+}
+
+.clear-btn:hover {
+  border-color: var(--ink-300);
+  color: var(--ink-700);
+}
+
 .add-source-btn:hover {
   background: var(--green-50);
 }
