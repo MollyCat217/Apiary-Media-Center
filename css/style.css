@@ -1077,3 +1077,163 @@ body {
 .add-source-btn:hover {
   background: var(--green-50);
 }
+
+/* ── DISCOVER / PERPLEXITY ───────────────────────────────────────────────── */
+
+.discover-topic-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  align-items: center;
+}
+
+.discover-topic-row:first-child {
+  margin-bottom: 8px;
+}
+
+.discover-topic-input {
+  flex: 1;
+}
+
+.discover-results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--ink-100);
+}
+
+.discover-count {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-400);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.discover-card {
+  background: var(--surface);
+  border: 1px solid var(--ink-100);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 12px;
+  transition: border-color 0.15s;
+}
+
+.discover-card:hover {
+  border-color: var(--teal-300);
+}
+
+.discover-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.discover-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.discover-source {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--teal-700);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.discover-date {
+  font-size: 11px;
+  color: var(--ink-400);
+}
+
+.discover-topic-tag {
+  font-size: 10px;
+  background: var(--teal-50);
+  color: var(--teal-700);
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-weight: 500;
+}
+
+.discover-ext-link {
+  font-size: 11px;
+  color: var(--teal-600);
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.discover-ext-link:hover {
+  text-decoration: underline;
+}
+
+.discover-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-900);
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+
+.discover-card-summary {
+  font-size: 13px;
+  color: var(--ink-600);
+  line-height: 1.6;
+  margin-bottom: 8px;
+}
+
+.discover-card-relevance {
+  font-size: 12px;
+  color: var(--ink-500);
+  line-height: 1.5;
+  padding: 8px 10px;
+  background: var(--teal-50);
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+
+.discover-relevance-label {
+  font-weight: 600;
+  color: var(--teal-700);
+}
+
+.discover-card-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.discover-send-compose,
+.discover-send-write {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--ink-200);
+  background: var(--surface);
+  color: var(--ink-700);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.discover-send-compose:hover {
+  background: var(--teal-50);
+  border-color: var(--teal-400);
+  color: var(--teal-700);
+}
+
+.discover-send-write:hover {
+  background: var(--teal-50);
+  border-color: var(--teal-400);
+  color: var(--teal-700);
+}
+
