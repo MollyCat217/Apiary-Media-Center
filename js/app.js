@@ -692,6 +692,30 @@ function saveApiKey() {
   document.getElementById('apiKeyStatus').innerHTML = '<span class="status-ok">API key saved.</span>';
 }
 
+function savePerplexityKey() {
+  const key = document.getElementById('perplexityKeyInput').value.trim();
+  if (!key.startsWith('pplx-')) {
+    document.getElementById('perplexityKeyStatus').innerHTML = '<span class="status-err">Invalid key — should start with pplx-</span>';
+    return;
+  }
+  Storage.set('perplexityKey', key);
+  document.getElementById('perplexityKeyStatus').innerHTML = '<span class="status-ok">Perplexity key saved.</span>';
+  updatePerplexityBadge();
+}
+
+function updatePerplexityBadge() {
+  const badge = document.getElementById('perplexityIntegrationBadge');
+  if (!badge) return;
+  const key = Storage.get('perplexityKey', '');
+  if (key) {
+    badge.textContent = 'Active';
+    badge.className = 'badge-active';
+  } else {
+    badge.textContent = 'No key set';
+    badge.className = 'badge-soon';
+  }
+}
+
 function saveScriptUrl() {
   const url = document.getElementById('scriptUrlInput').value.trim();
   if (!url.includes('script.google.com')) {
@@ -715,6 +739,11 @@ function loadSettings() {
   const apiKey = Storage.get('apiKey', '');
   const input = document.getElementById('apiKeyInput');
   if (input && apiKey) input.value = apiKey;
+
+  const perplexityKey = Storage.get('perplexityKey', '');
+  const perplexityInput = document.getElementById('perplexityKeyInput');
+  if (perplexityInput && perplexityKey) perplexityInput.value = perplexityKey;
+
   const scriptUrl = Storage.get('scriptUrl', '');
   const scriptInput = document.getElementById('scriptUrlInput');
   if (scriptInput && scriptUrl) scriptInput.value = scriptUrl;
@@ -727,12 +756,19 @@ function loadSettings() {
       ? '<span class="status-ok">API key is set.</span>'
       : '<span class="status-err">No API key set.</span>';
   }
+  const perplexityEl = document.getElementById('perplexityKeyStatus');
+  if (perplexityEl) {
+    perplexityEl.innerHTML = perplexityKey
+      ? '<span class="status-ok">Perplexity key is set.</span>'
+      : '<span class="status-err">No Perplexity key set.</span>';
+  }
   const sheetEl = document.getElementById('scriptUrlStatus');
   if (sheetEl) {
     sheetEl.innerHTML = scriptUrl
       ? '<span class="status-ok">Google Sheet connected.</span>'
       : '<span class="status-err">No Google Sheet connected yet.</span>';
   }
+  updatePerplexityBadge();
 }
 
 function initNav() {
@@ -745,7 +781,8 @@ function initNav() {
       document.getElementById('view-' + view).classList.remove('hidden');
       if (view === 'history') renderHistory();
       if (view === 'settings') loadSettings();
-      if (view === 'hooks') renderHooks();    });
+      if (view === 'hooks') renderHooks();
+    });
   });
 
   document.querySelectorAll('.persona-btn').forEach(btn => {
@@ -801,11 +838,237 @@ function clearArticleFields() {
   document.getElementById('articleClearBtn').style.display = 'none';
 }
 
+// ─── DISCOVER / PERPLEXITY ────────────────────────────────────────────────────
+
+const DISCOVER_DEFAULT_TOPICS = [
+  'FQHC federal funding policy',
+  'HRSA health center program',
+  'community health center Medicaid',
+  'NACHC primary care policy'
+];
+
+function addDiscoverTopic() {
+  const container = document.getElementById('discoverTopicsContainer');
+  const row = document.createElement('div');
+  row.className = 'discover-topic-row';
+  row.style.display = 'flex';
+  row.style.gap = '8px';
+  row.style.marginTop = '8px';
+  row.innerHTML =
+    '<input type="text" class="field-input discover-topic-input" placeholder="e.g. HRSA community health grants" style="flex:1;" />' +
+    '<button class="delete-btn" style="padding:6px 12px;flex-shrink:0;" onclick="this.parentElement.remove()">Remove</button>';
+  container.appendChild(row);
+}
+
+async function discoverArticles() {
+  const pplxKey = Storage.get('perplexityKey', '');
+  if (!pplxKey) {
+    document.getElementById('discoverError').textContent = 'Please add your Perplexity API key in Settings first.';
+    return;
+  }
+
+  const topicInputs = document.querySelectorAll('.discover-topic-input');
+  const topics = Array.from(topicInputs).map(i => i.value.trim()).filter(Boolean);
+  if (!topics.length) {
+    document.getElementById('discoverError').textContent = 'Please enter at least one search topic.';
+    return;
+  }
+
+  const recency = document.getElementById('discoverRecency').value;
+  const count = parseInt(document.getElementById('discoverCount').value) || 5;
+  const persona = getPersona();
+
+  document.getElementById('discoverError').textContent = '';
+  document.getElementById('discoverEmpty').style.display = 'none';
+
+  const btn = document.getElementById('discoverBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span>Searching...</span>';
+
+  const resultsEl = document.getElementById('discoverResults');
+  resultsEl.innerHTML = '<div class="loading-msg">Searching for recent articles via Perplexity...</div>';
+
+  const recencyLabel = { day: 'the past 24 hours', week: 'the past week', month: 'the past month' }[recency];
+  const topicList = topics.map((t, i) => `${i + 1}. ${t}`).join('\n');
+
+  const prompt = `You are a research assistant for a healthcare content team that creates content for ${persona.fullLabel}.
+
+Search for and return ${count} recently published articles or news items from ${recencyLabel} relevant to these topics:
+${topicList}
+
+For each article, return structured data. Focus on articles from authoritative sources: government agencies (HRSA, CMS, HHS), major healthcare associations (NACHC, AAFP, AHA), academic journals, and reputable healthcare news outlets (Health Affairs, Modern Healthcare, Kaiser Health News, Stat News, etc.).
+
+Respond with ONLY a valid JSON array — no markdown, no explanation, no code fences:
+[
+  {
+    "title": "Full article title",
+    "source": "Publisher or organization name",
+    "url": "Full URL if available, or empty string",
+    "date": "Publication date or 'Recent' if unknown",
+    "summary": "2-3 sentence summary of what the article covers and why it matters to ${persona.fullLabel}",
+    "relevance": "One sentence explaining specifically why this is relevant to ${persona.fullLabel}",
+    "topic": "Which of the search topics this relates to"
+  }
+]
+
+Return exactly ${count} articles. If you cannot find ${count} distinct articles, return as many as you can find. Order by most relevant to ${persona.fullLabel} first.`;
+
+  try {
+    const response = await fetch('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + pplxKey
+      },
+      body: JSON.stringify({
+        model: 'sonar',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a research assistant that finds recent, authoritative articles relevant to healthcare organizations. Always respond with valid JSON only — no markdown formatting, no explanation, no code fences.'
+          },
+          { role: 'user', content: prompt }
+        ],
+        search_recency_filter: recency,
+        return_citations: true
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error?.message || 'Perplexity API error ' + response.status);
+    }
+
+    const data = await response.json();
+    const raw = (data.choices || []).map(c => c.message?.content || '').join('').trim();
+    const clean = raw.replace(/```json|```/g, '').trim();
+
+    let articles;
+    try {
+      articles = JSON.parse(clean);
+    } catch {
+      throw new Error('Could not parse Perplexity response. The API may have returned an unexpected format.');
+    }
+
+    if (!Array.isArray(articles) || !articles.length) {
+      resultsEl.innerHTML = '<div class="error-msg">No articles found. Try broadening your search topics or changing the recency filter.</div>';
+      return;
+    }
+
+    renderDiscoverResults(articles, resultsEl);
+
+  } catch (err) {
+    resultsEl.innerHTML = '<div class="error-msg">Search failed: ' + escapeHtml(err.message) + '</div>';
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = 'Search for articles <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>';
+}
+
+function renderDiscoverResults(articles, container) {
+  const header = document.createElement('div');
+  header.className = 'discover-results-header';
+  header.innerHTML = '<span class="discover-count">' + articles.length + ' article' + (articles.length !== 1 ? 's' : '') + ' found</span>';
+  container.innerHTML = '';
+  container.appendChild(header);
+
+  articles.forEach((article, idx) => {
+    const card = document.createElement('div');
+    card.className = 'discover-card';
+    card.innerHTML = `
+      <div class="discover-card-top">
+        <div class="discover-card-meta">
+          <span class="discover-source">${escapeHtml(article.source || 'Unknown source')}</span>
+          <span class="discover-date">${escapeHtml(article.date || 'Recent')}</span>
+          ${article.topic ? '<span class="discover-topic-tag">' + escapeHtml(article.topic) + '</span>' : ''}
+        </div>
+        ${article.url ? '<a class="discover-ext-link" href="' + escapeHtml(article.url) + '" target="_blank" rel="noopener">↗ Open article</a>' : ''}
+      </div>
+      <div class="discover-card-title">${escapeHtml(article.title || 'Untitled')}</div>
+      <div class="discover-card-summary">${escapeHtml(article.summary || '')}</div>
+      ${article.relevance ? '<div class="discover-card-relevance"><span class="discover-relevance-label">Why it matters:</span> ' + escapeHtml(article.relevance) + '</div>' : ''}
+      <div class="discover-card-actions">
+        <button class="action-btn discover-send-compose" onclick="sendToCompose(${idx})">
+          <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+          Send to Compose
+        </button>
+        <button class="action-btn discover-send-write" onclick="sendToWriter(${idx})">
+          <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+          Send to Article Writer
+        </button>
+      </div>
+    `;
+    card.dataset.article = JSON.stringify(article);
+    container.appendChild(card);
+  });
+}
+
+function getDiscoverArticleByIndex(idx) {
+  const cards = document.querySelectorAll('.discover-card');
+  if (!cards[idx]) return null;
+  try { return JSON.parse(cards[idx].dataset.article); } catch { return null; }
+}
+
+function sendToCompose(idx) {
+  const article = getDiscoverArticleByIndex(idx);
+  if (!article) return;
+
+  const content = [article.title, article.summary, article.relevance].filter(Boolean).join('\n\n');
+  const alertContentEl = document.getElementById('alertContent');
+  const sourceOrgEl = document.getElementById('sourceOrg');
+  const articleUrlEl = document.getElementById('articleUrl');
+  if (alertContentEl) alertContentEl.value = content;
+  if (sourceOrgEl) sourceOrgEl.value = article.source || '';
+  if (articleUrlEl) articleUrlEl.value = article.url || '';
+
+  // Navigate to Compose tab
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  document.querySelector('.nav-item[data-view="compose"]').classList.add('active');
+  document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+  document.getElementById('view-compose').classList.remove('hidden');
+
+  // Flash confirmation
+  if (alertContentEl) {
+    alertContentEl.style.borderColor = 'var(--teal-500)';
+    setTimeout(() => { alertContentEl.style.borderColor = ''; }, 1500);
+  }
+}
+
+function sendToWriter(idx) {
+  const article = getDiscoverArticleByIndex(idx);
+  if (!article) return;
+
+  const content = [article.title, article.summary, article.relevance].filter(Boolean).join('\n\n');
+
+  // Fill first source block in Article Writer
+  const firstContent = document.querySelector('.source-content');
+  const firstOrg = document.querySelector('.source-org');
+  const firstUrl = document.querySelector('.source-url');
+  if (firstContent) firstContent.value = content;
+  if (firstOrg) firstOrg.value = article.source || '';
+  if (firstUrl) firstUrl.value = article.url || '';
+
+  // Navigate to Article Writer tab
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  document.querySelector('.nav-item[data-view="write"]').classList.add('active');
+  document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+  document.getElementById('view-write').classList.remove('hidden');
+
+  // Flash confirmation
+  if (firstContent) {
+    firstContent.style.borderColor = 'var(--teal-500)';
+    setTimeout(() => { firstContent.style.borderColor = ''; }, 1500);
+  }
+}
+
+// ─── ARTICLE WRITER ───────────────────────────────────────────────────────────
+
 window.generatePosts = generatePosts;
 window.copyPost = copyPost;
 window.copySummary = copySummary;
 window.stopGeneration = stopGeneration;
 window.saveApiKey = saveApiKey;
+window.savePerplexityKey = savePerplexityKey;
 window.saveScriptUrl = saveScriptUrl;
 window.saveDefaults = saveDefaults;
 window.saveHook = saveHook;
@@ -819,6 +1082,10 @@ window.copyArticleSection = copyArticleSection;
 window.addSource = addSource;
 window.removeSource = removeSource;
 window.clearArticleFields = clearArticleFields;
+window.discoverArticles = discoverArticles;
+window.addDiscoverTopic = addDiscoverTopic;
+window.sendToCompose = sendToCompose;
+window.sendToWriter = sendToWriter;
 
 function addSource() {
   const container = document.getElementById('sourcesContainer');
@@ -942,6 +1209,9 @@ CRITICAL WRITING RULES — never violate these under any circumstances:
 - Never use the word "crucial" or "pivotal".
 - Write like a skilled human journalist. Use commas, periods, and sentence structure to create flow and emphasis. Not punctuation shortcuts.
 
+SOURCES:
+${sourcesBlock}
+
 Respond with ONLY a valid JSON object — no markdown, no explanation, no code fences:
 {
   "title": "Compelling article title",
@@ -1017,7 +1287,7 @@ Respond with ONLY a valid JSON object — no markdown, no explanation, no code f
   if (stopBtn) stopBtn.style.display = 'none';
   abortController = null;
   const clearBtn = document.getElementById('articleClearBtn');
-if (clearBtn) clearBtn.style.display = 'inline-flex';
+  if (clearBtn) clearBtn.style.display = 'inline-flex';
 }
 
 function renderArticle(article, meta, container) {
