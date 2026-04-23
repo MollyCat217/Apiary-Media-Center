@@ -1235,5 +1235,132 @@ body {
   background: var(--teal-50);
   border-color: var(--teal-400);
   color: var(--teal-700);
+
+
+/* ─── ADD THESE STYLES TO THE BOTTOM OF YOUR style.css ─────────────────────── */
+
+/* Takeaway source attribution badge */
+.takeaway-source-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--teal-50, #f0fdfa);
+  color: var(--teal-700, #0f766e);
+  border: 1px solid var(--teal-200, #99f6e4);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+/* Source grounding check card */
+.hallucination-check-card {
+  margin-top: 16px;
+  border-radius: 10px;
+  border: 1.5px solid #e2e8f0;
+  background: #fff;
+  overflow: hidden;
+}
+
+.hallucination-check-card.check-passed {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.hallucination-check-card.check-failed {
+  border-color: #fca5a5;
+  background: #fff7f7;
+}
+
+.check-header {
+  padding: 14px 16px 12px;
+}
+
+.check-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.check-icon {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.check-passed .check-icon { color: #16a34a; }
+.check-failed .check-icon { color: #dc2626; }
+
+.check-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.check-badge {
+  padding: 2px 9px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.check-badge-pass {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.check-badge-fail {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.check-confidence {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-left: auto;
+}
+
+.check-summary {
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.check-issues {
+  border-top: 1px solid #fecaca;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.check-issue-item {
+  background: #fff;
+  border: 1px solid #fecaca;
+  border-radius: 7px;
+  padding: 10px 12px;
+}
+
+.check-issue-claim {
+  font-size: 13px;
+  font-style: italic;
+  color: #374151;
+  margin-bottom: 4px;
+  line-height: 1.4;
+}
+
+.check-issue-reason {
+  font-size: 12px;
+  color: #b91c1c;
+  font-weight: 500;
+}
+
+
+  
 }
 
