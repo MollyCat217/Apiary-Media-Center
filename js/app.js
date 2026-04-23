@@ -1021,13 +1021,11 @@ function sendToCompose(idx) {
   if (sourceOrgEl) sourceOrgEl.value = article.source || '';
   if (articleUrlEl) articleUrlEl.value = article.url || '';
 
-  // Navigate to Compose tab
   document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
   document.querySelector('.nav-item[data-view="compose"]').classList.add('active');
   document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
   document.getElementById('view-compose').classList.remove('hidden');
 
-  // Flash confirmation
   if (alertContentEl) {
     alertContentEl.style.borderColor = 'var(--teal-500)';
     setTimeout(() => { alertContentEl.style.borderColor = ''; }, 1500);
@@ -1040,7 +1038,6 @@ function sendToWriter(idx) {
 
   const content = [article.title, article.summary, article.relevance].filter(Boolean).join('\n\n');
 
-  // Fill first source block in Article Writer
   const firstContent = document.querySelector('.source-content');
   const firstOrg = document.querySelector('.source-org');
   const firstUrl = document.querySelector('.source-url');
@@ -1048,13 +1045,11 @@ function sendToWriter(idx) {
   if (firstOrg) firstOrg.value = article.source || '';
   if (firstUrl) firstUrl.value = article.url || '';
 
-  // Navigate to Article Writer tab
   document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
   document.querySelector('.nav-item[data-view="write"]').classList.add('active');
   document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
   document.getElementById('view-write').classList.remove('hidden');
 
-  // Flash confirmation
   if (firstContent) {
     firstContent.style.borderColor = 'var(--teal-500)';
     setTimeout(() => { firstContent.style.borderColor = ''; }, 1500);
@@ -1143,6 +1138,116 @@ const ARTICLE_TYPES = {
   }
 };
 
+// ─── CHANGE 1: HALLUCINATION CHECK (second API call) ─────────────────────────
+
+async function runHallucinationCheck(article, sourcesBlock, apiKey) {
+  const takeawayLines = (article.takeaways || []).map((t, i) => {
+    const claim = typeof t === 'object' ? t.claim : t;
+    const source = typeof t === 'object' && t.source ? ' [Source: ' + t.source + ']' : '';
+    return (i + 1) + '. ' + claim + source;
+  }).join('\n');
+
+  const checkPrompt = `You are a fact-checking assistant. Your job is to review a generated article and verify that every factual claim is directly supported by the provided source material. You are not checking writing quality — only whether claims are grounded in the sources.
+
+SOURCES:
+${sourcesBlock}
+
+ARTICLE TO CHECK:
+Title: ${article.title}
+
+Key Takeaways:
+${takeawayLines}
+
+Article Body:
+${article.body}
+
+INSTRUCTIONS:
+Review each factual claim, statistic, and specific assertion in the article. Flag anything that:
+- Cannot be found in the sources
+- Contradicts or misrepresents the sources
+- Appears to be invented or drawn from outside knowledge
+
+Do NOT flag reasonable editorial framing or synthesis that accurately reflects the sources. Only flag concrete claims that cannot be traced back to the source material.
+
+Respond with ONLY a valid JSON object — no markdown, no explanation, no code fences:
+{
+  "passed": true or false,
+  "confidence": "high", "medium", or "low",
+  "issues": [
+    {
+      "claim": "the specific claim or phrase from the article",
+      "issue": "brief description — not found in sources / contradicts sources / appears fabricated"
+    }
+  ],
+  "summary": "1-2 sentence overall assessment of how well the article stays grounded in the source material"
+}
+
+If no issues are found, return an empty issues array and set passed to true.`;
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    signal: abortController ? abortController.signal : undefined,
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1500,
+      messages: [{ role: 'user', content: checkPrompt }]
+    })
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error?.message || 'API error ' + response.status);
+  }
+
+  const data = await response.json();
+  const raw = (data.content || []).map(b => b.text || '').join('').trim();
+  const clean = raw.replace(/```json|```/g, '').trim();
+  return JSON.parse(clean);
+}
+
+function renderHallucinationCheck(check, container) {
+  const passed = check.passed && (!check.issues || check.issues.length === 0);
+  const issueCount = (check.issues || []).length;
+
+  const card = document.createElement('div');
+  card.className = 'hallucination-check-card ' + (passed ? 'check-passed' : 'check-failed');
+
+  const issuesHtml = issueCount > 0
+    ? '<div class="check-issues">' +
+      (check.issues || []).map(issue =>
+        '<div class="check-issue-item">' +
+        '<div class="check-issue-claim">"' + escapeHtml(issue.claim) + '"</div>' +
+        '<div class="check-issue-reason">' + escapeHtml(issue.issue) + '</div>' +
+        '</div>'
+      ).join('') +
+      '</div>'
+    : '';
+
+  card.innerHTML =
+    '<div class="check-header">' +
+    '<div class="check-status-row">' +
+    '<span class="check-icon">' + (passed ? '✓' : '⚠') + '</span>' +
+    '<span class="check-label">Source grounding check</span>' +
+    '<span class="check-badge check-badge-' + (passed ? 'pass' : 'fail') + '">' +
+    (passed ? 'All claims verified' : issueCount + ' issue' + (issueCount !== 1 ? 's' : '') + ' flagged') +
+    '</span>' +
+    '<span class="check-confidence">Confidence: ' + escapeHtml(check.confidence || 'medium') + '</span>' +
+    '</div>' +
+    '<div class="check-summary">' + escapeHtml(check.summary || '') + '</div>' +
+    '</div>' +
+    issuesHtml;
+
+  container.appendChild(card);
+}
+
+// ─── GENERATE ARTICLE ─────────────────────────────────────────────────────────
+
 async function generateArticle() {
   const apiKey = Storage.get('apiKey', '');
   if (!apiKey) {
@@ -1164,10 +1269,10 @@ async function generateArticle() {
     return;
   }
 
-const angle = document.getElementById('articleAngle').value.trim();
-const articleHooks = Storage.get('messagingHooks', []);
-const articleHookId = parseInt(document.getElementById('articleHookSelect')?.value);
-const articleHook = articleHooks.find(h => h.id === articleHookId) || null;
+  const angle = document.getElementById('articleAngle').value.trim();
+  const articleHooks = Storage.get(hooksStorageKey(), []);
+  const articleHookId = parseInt(document.getElementById('articleHookSelect')?.value);
+  const articleHook = articleHooks.find(h => h.id === articleHookId) || null;
   const type = document.getElementById('articleType').value;
   const meta = ARTICLE_TYPES[type];
 
@@ -1189,6 +1294,7 @@ const articleHook = articleHooks.find(h => h.id === articleHookId) || null;
     '--- SOURCE ' + s.index + (s.org ? ' (' + s.org + ')' : '') + (s.url ? ' | ' + s.url : '') + ' ---\n' + s.content
   ).join('\n\n');
 
+  // CHANGE 2: Stronger prompt — refusal instructions + sourced takeaways schema
   const prompt = `You are an expert healthcare content writer with deep knowledge of the FQHC ecosystem: HRSA funding, NACHC, state PCAs, 340B Drug Pricing Program, Medicaid, value-based care, workforce, and health equity. You write for Afya, a company that helps FQHCs capture revenue through automated care coordination documentation.
 
 Write content that synthesizes ALL of the sources below into a single cohesive piece for an FQHC audience. Every source must contribute meaningfully to the article — do not focus on just one source and ignore the others. Draw connections between sources only where those connections are clearly supported by the source material itself. Do not invent connections or introduce topics not present in the sources. Write content based STRICTLY AND ONLY on the sources provided below. Every claim, fact, statistic, and assertion in the article must come directly from the source material. Do not invent examples, fabricate statistics, add outside knowledge, or make connections that are not explicitly supported by the sources. If a source does not contain enough information to support a claim, do not make that claim. Stay grounded in what the sources actually say.
@@ -1207,7 +1313,9 @@ CRITICAL WRITING RULES — never violate these under any circumstances:
 - Never use "in today's landscape", "in today's world", or similar filler openers.
 - Never start a sentence with "Additionally" or "Furthermore" as a lazy connector.
 - Never use the word "crucial" or "pivotal".
-- Write like a skilled human journalist. Use commas, periods, and sentence structure to create flow and emphasis. Not punctuation shortcuts.
+- Write like a skilled human journalist. Use commas, periods, and sentence structure to create flow and emphasis.
+- If the sources do not contain enough information to write a full ${meta.wordCount} article, write a shorter piece using only what the sources support. Never pad with outside knowledge to meet the word count.
+- If a section cannot be written from the sources alone, omit it entirely rather than filling it with assumptions.
 
 SOURCES:
 ${sourcesBlock}
@@ -1215,10 +1323,17 @@ ${sourcesBlock}
 Respond with ONLY a valid JSON object — no markdown, no explanation, no code fences:
 {
   "title": "Compelling article title",
-  "takeaways": ["key takeaway 1", "key takeaway 2", "key takeaway 3", "key takeaway 4"],
+  "takeaways": [
+    {"claim": "key takeaway text here", "source": "Source 1"},
+    {"claim": "key takeaway text here", "source": "Source 2"},
+    {"claim": "key takeaway text here", "source": "Source 1"},
+    {"claim": "key takeaway text here", "source": "Source 3"}
+  ],
   "body": "Full article text here. Use \\n\\n for paragraph breaks. Use ## for subheadings.",
   "cta": "A specific, actionable call to action sentence or two — what should the reader do next?"
-}`;
+}
+
+For each takeaway, the "source" field must reference which source number (e.g. "Source 1", "Source 2") the claim comes from. If a takeaway draws from multiple sources, list them (e.g. "Source 1, Source 2").`;
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -1247,8 +1362,30 @@ Respond with ONLY a valid JSON object — no markdown, no explanation, no code f
     const clean = raw.replace(/```json|```/g, '').trim();
     const article = JSON.parse(clean);
 
+    // Render article first so user sees it immediately
     renderArticle(article, meta, resultsEl);
 
+    // Then run the hallucination check as a second pass
+    const checkLoadingEl = document.createElement('div');
+    checkLoadingEl.className = 'loading-msg';
+    checkLoadingEl.textContent = 'Running source grounding check...';
+    resultsEl.appendChild(checkLoadingEl);
+
+    try {
+      const hallucinationCheck = await runHallucinationCheck(article, sourcesBlock, apiKey);
+      checkLoadingEl.remove();
+      renderHallucinationCheck(hallucinationCheck, resultsEl);
+    } catch (checkErr) {
+      checkLoadingEl.remove();
+      console.warn('Hallucination check failed:', checkErr.message);
+      const checkErrDiv = document.createElement('div');
+      checkErrDiv.className = 'error-msg';
+      checkErrDiv.style.marginTop = '12px';
+      checkErrDiv.textContent = 'Source grounding check could not be completed: ' + checkErr.message;
+      resultsEl.appendChild(checkErrDiv);
+    }
+
+    // Save to Google Sheet
     const scriptUrl = Storage.get('scriptUrl', '');
     if (scriptUrl) {
       try {
@@ -1264,7 +1401,11 @@ Respond with ONLY a valid JSON object — no markdown, no explanation, no code f
             url: sources.map(s => s.url).filter(Boolean).join(', '),
             angle: angle || '',
             title: article.title,
-            takeaways: article.takeaways.join(' | '),
+            takeaways: (article.takeaways || []).map((t, i) => {
+              const claim = typeof t === 'object' ? t.claim : t;
+              const src = typeof t === 'object' && t.source ? ' [' + t.source + ']' : '';
+              return (i + 1) + '. ' + claim + src;
+            }).join(' | '),
             body: article.body,
             cta: article.cta
           })
@@ -1290,6 +1431,7 @@ Respond with ONLY a valid JSON object — no markdown, no explanation, no code f
   if (clearBtn) clearBtn.style.display = 'inline-flex';
 }
 
+// CHANGE 3: renderArticle updated to show source attribution badges on takeaways
 function renderArticle(article, meta, container) {
   const bodyHtml = (article.body || '')
     .split('\n\n')
@@ -1300,6 +1442,22 @@ function renderArticle(article, meta, container) {
       return '<p class="article-para">' + escapeHtml(para) + '</p>';
     })
     .join('');
+
+  // Handle both old string format and new {claim, source} object format
+  const takeawaysHtml = (article.takeaways || []).map(t => {
+    if (typeof t === 'object' && t.claim) {
+      return '<li>' + escapeHtml(t.claim) +
+        (t.source ? ' <span class="takeaway-source-badge">' + escapeHtml(t.source) + '</span>' : '') +
+        '</li>';
+    }
+    return '<li>' + escapeHtml(t) + '</li>';
+  }).join('');
+
+  const takeawaysText = (article.takeaways || []).map((t, i) => {
+    const claim = typeof t === 'object' ? t.claim : t;
+    const src = typeof t === 'object' && t.source ? ' [' + t.source + ']' : '';
+    return (i + 1) + '. ' + claim + src;
+  }).join('\n');
 
   container.innerHTML = `
     <div class="article-card">
@@ -1315,11 +1473,9 @@ function renderArticle(article, meta, container) {
       <div class="article-section">
         <div class="article-section-header">
           <span class="article-section-label">Key takeaways</span>
-          <button class="action-btn" onclick="copyArticleSection(this, ${JSON.stringify((article.takeaways || []).map((t, i) => (i+1) + '. ' + t).join('\n'))})">Copy</button>
+          <button class="action-btn" onclick="copyArticleSection(this, ${JSON.stringify(takeawaysText)})">Copy</button>
         </div>
-        <ul class="article-takeaways">
-          ${(article.takeaways || []).map(t => '<li>' + escapeHtml(t) + '</li>').join('')}
-        </ul>
+        <ul class="article-takeaways">${takeawaysHtml}</ul>
       </div>
 
       <div class="article-section">
@@ -1339,7 +1495,7 @@ function renderArticle(article, meta, container) {
       </div>
 
       <div class="article-copy-all">
-        <button class="generate-btn" style="margin-top:0;" onclick="copyArticleSection(this, ${JSON.stringify(article.title + '\n\nKEY TAKEAWAYS\n' + (article.takeaways||[]).map((t,i)=>(i+1)+'. '+t).join('\n') + '\n\n' + article.body + '\n\n' + article.cta)})">
+        <button class="generate-btn" style="margin-top:0;" onclick="copyArticleSection(this, ${JSON.stringify(article.title + '\n\nKEY TAKEAWAYS\n' + takeawaysText + '\n\n' + article.body + '\n\n' + article.cta)})">
           Copy full article
           <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
         </button>
@@ -1351,10 +1507,10 @@ function renderArticle(article, meta, container) {
 
 function copyArticleSection(btn, text) {
   navigator.clipboard.writeText(text).then(() => {
-    const orig = btn.textContent;
+    const orig = btn.innerHTML;
     btn.textContent = 'Copied!';
     btn.classList.add('copied');
-    setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 2000);
+    setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('copied'); }, 2000);
   });
 }
 
