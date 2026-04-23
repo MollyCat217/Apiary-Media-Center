@@ -981,9 +981,10 @@ function renderDiscoverResults(articles, container) {
           <span class="discover-source">${escapeHtml(article.source || 'Unknown source')}</span>
           <span class="discover-date">${escapeHtml(article.date || 'Recent')}</span>
           ${article.topic ? '<span class="discover-topic-tag">' + escapeHtml(article.topic) + '</span>' : ''}
-        </div>
-        ${article.url ? '<a class="discover-ext-link" href="' + escapeHtml(article.url) + '" target="_blank" rel="noopener">↗ Open article</a>' : ''}
-      </div>
+      <div class="discover-link-row">
+  ${article.url ? '<a class="discover-ext-link" href="' + escapeHtml(article.url) + '" target="_blank" rel="noopener">↗ Open article</a>' : ''}
+  <a class="discover-search-link" href="https://www.google.com/search?q=${encodeURIComponent((article.title || '') + ' ' + (article.source || ''))}" target="_blank" rel="noopener">🔍 Search Google</a>
+</div>
       <div class="discover-card-title">${escapeHtml(article.title || 'Untitled')}</div>
       <div class="discover-card-summary">${escapeHtml(article.summary || '')}</div>
       ${article.relevance ? '<div class="discover-card-relevance"><span class="discover-relevance-label">Why it matters:</span> ' + escapeHtml(article.relevance) + '</div>' : ''}
