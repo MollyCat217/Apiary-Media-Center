@@ -1,7 +1,9 @@
-
 'use strict';
 
 let abortController = null;
+
+// ─── PERSONAS ────────────────────────────────────────────────────────────────
+// Includes original FQHC / RHC / CMHC / Navigator personas PLUS new Veterans
 
 const PERSONAS = {
   fqhc: {
@@ -35,7 +37,54 @@ const PERSONAS = {
     hooksTab: 'Navigator_Hooks',
     color: '#A9EACF',
     systemPrompt: `You are an expert social media strategist specializing in communications for Family Health Navigators and community health workers. You understand the navigator role deeply: helping families understand insurance options, connecting patients to community resources, breaking down healthcare barriers, supporting chronic disease management, and advocating for underserved populations. Your content empowers navigators with practical tools, celebrates their impact, and helps them communicate their value to funders, employers, and communities. Use warm, accessible language. Celebrate community. Avoid bureaucratic or clinical tone. Make navigators feel seen and supported.`
+  },
+  veterans: {
+    label: 'Veterans',
+    fullLabel: 'Veterans & Military Families',
+    sheetTab: 'Veterans_Posts',
+    hooksTab: 'Veterans_Hooks',
+    color: '#6366F1',
+    systemPrompt: `You are an expert social media strategist specializing in healthcare communications for veterans, active-duty service members, and military families. You have deep knowledge of the veteran healthcare ecosystem: VA healthcare system, TRICARE, the Mission Act and community care networks, service-connected disability benefits, the gap between VA coverage and community health center access, veteran mental health and suicide prevention, MST (military sexual trauma) services, and the unique healthcare challenges of transitioning service members. Your content resonates with veterans, caregivers of veterans, VSO (veteran service organization) staff, and healthcare providers who serve military-connected patients. Use plain, direct language that honors their service. Reference shared values of mission, service, and community. Avoid bureaucratic or condescending tone. Use inclusive phrases like "those who served" or "our veteran community." Never sensationalize military trauma.`
   }
+};
+
+// ─── AUDIENCE TARGETING ──────────────────────────────────────────────────────
+// Additional audience personas for multi-audience post generation
+// (used when generating posts targeting multiple audiences simultaneously)
+
+const AUDIENCE_PERSONAS = {
+  fqhc: {
+    label: 'FQHC Community',
+    searchTerms: ['FQHC', 'federally qualified health center', 'HRSA', 'NACHC', 'community health center'],
+    persona: `Writing for health center staff, clinical leaders, and community health advocates at FQHCs.
+Reference HRSA Section 330, 340B, UDS metrics, sliding-fee scale access, and the mission of serving underserved communities.
+Use professional healthcare language familiar to FQHC staff.`
+  },
+  veterans: {
+    label: 'Veterans & Military Families',
+    searchTerms: ['veterans health', 'VA healthcare', 'military families', 'TRICARE', 'veteran benefits'],
+    persona: `Writing for veterans, active-duty service members, and military families.
+Use plain, respectful language that honors service. Reference VA healthcare, TRICARE, the Mission Act, community care networks, and service-connected benefits.
+Lead with respect. Use "those who served" or "our veteran community." Avoid bureaucratic tone.`
+  },
+  navigators: {
+    label: 'Family Health Navigators',
+    searchTerms: ['health navigator', 'community health worker', 'Medicaid enrollment', 'ACA marketplace navigator', 'CMS navigator program'],
+    persona: `Writing for certified health navigators, community health workers, and patient advocates.
+Use empowering, educational language. Reference the CMS Navigator Program, Marketplace enrollment, Medicaid/CHIP, CHWs, and supporting multi-generational or immigrant families.
+Keep language accessible. Emphasize practical steps and community-based support.`
+  }
+};
+
+const TONE_DESCRIPTIONS = {
+  informative: 'Clear, factual, and educational — share key facts and explain why it matters.',
+  thought_leadership: 'Authoritative and insightful — offer strategic perspective on what this means for the sector.',
+  urgent: 'Action-oriented and advocacy-focused — highlight urgency and call the audience to pay attention or act.',
+  community: 'Warm, conversational, and community-oriented — invite discussion and peer engagement.',
+  veteran_respectful: 'Respectful and mission-oriented — honor service, speak plainly, connect healthcare to the veteran mission.',
+  veteran_peer: 'Peer-to-peer tone, as if from a fellow service member — direct, personal, and grounded.',
+  navigator_empowering: 'Empowering and educational — give navigators practical tools and celebrate their community impact.',
+  navigator_caregiver: 'Warm caregiver/family support tone — accessible, compassionate, focused on families.'
 };
 
 let activePersona = 'fqhc';
@@ -65,13 +114,6 @@ const PLATFORM_META = {
     badgeClass: 'badge-linkedin',
     instructions: `LinkedIn post for healthcare professionals and leaders. 200-300 words. Professional but human. Start with a strong one-sentence hook on its own line. Use short paragraphs and line breaks for readability. End with 3-5 relevant hashtags. Mention strategic implications for organizational leaders.`
   }
-};
-
-const TONE_DESCRIPTIONS = {
-  informative: 'Clear, factual, and educational — share key facts and explain why it matters.',
-  thought_leadership: 'Authoritative and insightful — offer strategic perspective on what this means for the sector.',
-  urgent: 'Action-oriented and advocacy-focused — highlight urgency and call the audience to pay attention or act.',
-  community: 'Warm, conversational, and community-oriented — invite discussion and peer engagement.'
 };
 
 const Storage = {
@@ -148,13 +190,22 @@ function switchPersona(personaKey) {
   renderHooks();
 }
 
-function appendPost(item, container) {
+function appendPost(item, container, audienceLabel) {
   const meta = PLATFORM_META[item.platform] || { label: item.platform, badgeClass: '' };
   const card = document.createElement('div');
   card.className = 'post-card';
+
+  // Show audience badge if this post was generated for a specific audience
+  const audienceBadgeHtml = audienceLabel
+    ? '<span class="audience-inline-badge">' + escapeHtml(audienceLabel) + '</span>'
+    : '';
+
   card.innerHTML = `
     <div class="post-header">
-      <span class="platform-badge ${meta.badgeClass}">${meta.label}</span>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span class="platform-badge ${meta.badgeClass}">${meta.label}</span>
+        ${audienceBadgeHtml}
+      </div>
       <div class="post-actions">
         <button class="action-btn" onclick="copyPost(this, ${JSON.stringify(item.post)})">Copy</button>
       </div>
@@ -307,6 +358,8 @@ async function loadFromGoogleSheet() {
   }
 }
 
+// ─── GENERATE POSTS (AUDIENCE-AWARE) ─────────────────────────────────────────
+
 async function generatePosts() {
   const apiKey = Storage.get('apiKey', '');
   if (!apiKey) { showError('Please add your Anthropic API key in Settings first.'); return; }
@@ -320,6 +373,14 @@ async function generatePosts() {
     document.querySelectorAll('.plat-toggle input:checked')
   ).map(cb => cb.value);
   if (!platforms.length) { showError('Please select at least one platform.'); return; }
+
+  // Read selected target audiences from the UI
+  const selectedAudienceEls = document.querySelectorAll('input[name="audience"]:checked');
+  const selectedAudiences = Array.from(selectedAudienceEls).map(el => el.value);
+  if (!selectedAudiences.length) {
+    showError('Please select at least one target audience.');
+    return;
+  }
 
   const tone = document.getElementById('toneSelect').value;
   const orgName = 'Afya';
@@ -342,6 +403,7 @@ async function generatePosts() {
   const timestamp = new Date().toISOString();
   const posts = [];
 
+  // Summary generation
   const summaryLoading = document.createElement('div');
   summaryLoading.className = 'loading-msg';
   summaryLoading.textContent = 'Analyzing article...';
@@ -368,16 +430,29 @@ async function generatePosts() {
     container.appendChild(errDiv);
   }
 
+  // Generate posts per platform, per audience
   for (const platform of platforms) {
-    if (!abortController) break;
-    const meta = PLATFORM_META[platform];
-    const loadingDiv = document.createElement('div');
-    loadingDiv.className = 'loading-msg';
-    loadingDiv.id = 'loading-' + platform;
-    loadingDiv.textContent = 'Generating ' + meta.label + '...';
-    container.appendChild(loadingDiv);
+    for (const audienceKey of selectedAudiences) {
+      if (!abortController) break;
 
-    const userPrompt = `Generate a single social media post based on this article or alert, targeted specifically at ${persona.fullLabel}:
+      const audienceMeta = AUDIENCE_PERSONAS[audienceKey] || {
+        label: persona.fullLabel,
+        persona: persona.systemPrompt
+      };
+      const platformMeta = PLATFORM_META[platform];
+
+      const loadingDiv = document.createElement('div');
+      loadingDiv.className = 'loading-msg';
+      loadingDiv.id = 'loading-' + platform + '-' + audienceKey;
+      loadingDiv.textContent = 'Generating ' + platformMeta.label + ' for ' + audienceMeta.label + '...';
+      container.appendChild(loadingDiv);
+
+      const toneDescription = TONE_DESCRIPTIONS[tone] || tone;
+
+      const userPrompt = `Generate a single social media post based on this article or alert.
+
+TARGET AUDIENCE: ${audienceMeta.label}
+AUDIENCE CONTEXT: ${audienceMeta.persona}
 
 CONTENT:
 ${content}
@@ -385,69 +460,81 @@ ${source ? '\nSOURCE: ' + source : ''}
 ${url ? '\nURL: ' + url : ''}
 POSTING ON BEHALF OF: ${orgName}
 
-AUDIENCE: ${persona.fullLabel}
-TONE: ${TONE_DESCRIPTIONS[tone]}
+TONE: ${toneDescription}
 ${activeHook ? '\nMESSAGING HOOK — weave this angle into the post: ' + activeHook.text : ''}
 
 PLATFORM INSTRUCTIONS:
-${meta.instructions}
+${platformMeta.instructions}
+
+Tailor the language, framing, and calls to action specifically to the TARGET AUDIENCE above — their concerns, context, terminology, and what matters to them. Do not use generic healthcare language; speak directly to this audience.
 
 Respond with ONLY a valid JSON object — no markdown, no explanation, no code fences:
-{"platform": "${platform}", "post": "your post text here"}
+{"platform": "${platform}", "audience": "${audienceKey}", "audienceLabel": "${audienceMeta.label}", "post": "your post text here"}
 
 Use \\n for line breaks inside the post text.`;
 
-    try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
-        },
-        signal: abortController ? abortController.signal : undefined,
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 2000,
-          system: persona.systemPrompt,
-          messages: [{ role: 'user', content: userPrompt }]
-        })
-      });
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.error?.message || 'API error ' + response.status);
+      try {
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true'
+          },
+          signal: abortController ? abortController.signal : undefined,
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 2000,
+            system: persona.systemPrompt,
+            messages: [{ role: 'user', content: userPrompt }]
+          })
+        });
+
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          throw new Error(err.error?.message || 'API error ' + response.status);
+        }
+
+        const data = await response.json();
+        const raw = (data.content || []).map(b => b.text || '').join('').trim();
+        const clean = raw.replace(/```json|```/g, '').trim();
+        const item = JSON.parse(clean);
+        posts.push(item);
+
+        const loadingEl = document.getElementById('loading-' + platform + '-' + audienceKey);
+        if (loadingEl) loadingEl.remove();
+        appendPost(item, container, selectedAudiences.length > 1 ? audienceMeta.label : null);
+
+      } catch (err) {
+        const loadingEl = document.getElementById('loading-' + platform + '-' + audienceKey);
+        if (loadingEl) loadingEl.remove();
+        if (err.name === 'AbortError') {
+          const note = document.createElement('div');
+          note.className = 'stop-note';
+          note.textContent = 'Generation was stopped. Any posts already created above have been saved.';
+          container.appendChild(note);
+          break;
+        }
+        const errDiv = document.createElement('div');
+        errDiv.className = 'error-msg';
+        errDiv.textContent = 'Error generating ' + platformMeta.label + ' (' + audienceMeta.label + '): ' + err.message;
+        container.appendChild(errDiv);
       }
-      const data = await response.json();
-      const raw = (data.content || []).map(b => b.text || '').join('').trim();
-      const clean = raw.replace(/```json|```/g, '').trim();
-      const item = JSON.parse(clean);
-      posts.push(item);
-      const loadingEl = document.getElementById('loading-' + platform);
-      if (loadingEl) loadingEl.remove();
-      appendPost(item, container);
-    } catch (err) {
-      const loadingEl = document.getElementById('loading-' + platform);
-      if (loadingEl) loadingEl.remove();
-      if (err.name === 'AbortError') {
-        const note = document.createElement('div');
-        note.className = 'stop-note';
-        note.textContent = 'Generation was stopped. Any posts already created above have been saved.';
-        container.appendChild(note);
-        break;
-      }
-      const errDiv = document.createElement('div');
-      errDiv.className = 'error-msg';
-      errDiv.textContent = 'Error generating ' + meta.label + ': ' + err.message;
-      container.appendChild(errDiv);
     }
   }
 
   if (posts.length) {
     const batch = {
-      timestamp, source: source || '', url: url || '', content,
+      timestamp,
+      source: source || '',
+      url: url || '',
+      content,
       hook: activeHook ? activeHook.name : '',
-      summary: summary || null, platforms, posts
+      summary: summary || null,
+      platforms,
+      audiences: selectedAudiences,         // ← audience tags saved to history
+      posts
     };
     await saveToGoogleSheet(batch);
     const historyKey = 'postHistory_' + activePersona;
@@ -463,6 +550,8 @@ Use \\n for line breaks inside the post text.`;
 
   resetButtons();
 }
+
+// ─── HISTORY ─────────────────────────────────────────────────────────────────
 
 async function renderHistory() {
   const list = document.getElementById('historyList');
@@ -480,47 +569,97 @@ async function renderHistory() {
     return;
   }
   if (empty) empty.style.display = 'none';
+
+  // Store full batches on the list element for filter use
+  list._allBatches = batches;
+  _renderHistoryBatches(list, batches);
+}
+
+function _renderHistoryBatches(list, batches) {
+  const AUDIENCE_EMOJIS = { fqhc: '🏥', veterans: '🎖️', navigators: '🧭' };
+
   list.innerHTML = batches.map(function(batch) {
     const date = new Date(batch.timestamp).toLocaleDateString('en-US', {
       month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
     });
     const platforms = batch.platforms || [];
+    const batchAudiences = batch.audiences || [];
+
     const platformBadges = platforms
       .map(p => '<span class="hist-badge">' + (PLATFORM_META[p] ? PLATFORM_META[p].label : p) + '</span>')
       .join('');
+
+    const audienceBadges = batchAudiences
+      .map(a => {
+        const meta = AUDIENCE_PERSONAS[a];
+        if (!meta) return '';
+        const emoji = AUDIENCE_EMOJIS[a] || '';
+        return '<span class="hist-badge hist-badge-audience">' + emoji + ' ' + meta.label + '</span>';
+      }).join('');
+
     const hookBadge = batch.hook
       ? '<span class="hist-badge" style="background:var(--green-50);color:var(--green-800);">Hook: ' + escapeHtml(batch.hook) + '</span>'
       : '';
+
     const summaryHtml = batch.summary
       ? '<div class="hist-summary"><div class="hist-summary-label">TL;DR</div><div class="hist-summary-tldr">' + escapeHtml(batch.summary.tldr || '') + '</div><div class="hist-summary-why">' + escapeHtml(batch.summary.why || '') + '</div></div>'
       : '';
+
     const postsHtml = (batch.posts || []).map(function(item) {
       const meta = PLATFORM_META[item.platform] || { label: item.platform, badgeClass: '' };
+      const audienceMeta = item.audienceLabel ? AUDIENCE_PERSONAS[item.audience] : null;
+      const audienceBadge = audienceMeta
+        ? '<span class="hist-badge hist-badge-audience">' + escapeHtml(item.audienceLabel) + '</span>'
+        : '';
       return '<div class="post-card" style="margin-bottom:10px;">' +
-        '<div class="post-header"><span class="platform-badge ' + meta.badgeClass + '">' + meta.label + '</span>' +
+        '<div class="post-header">' +
+        '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' +
+        '<span class="platform-badge ' + meta.badgeClass + '">' + meta.label + '</span>' +
+        audienceBadge +
+        '</div>' +
         '<button class="action-btn" onclick="copyPost(this, ' + JSON.stringify(item.post) + ')">Copy</button></div>' +
         '<div class="post-body">' + escapeHtml(item.post) + '</div></div>';
     }).join('');
+
     const snippet = batch.contentSnippet || (batch.content ? batch.content.slice(0, 120) : '');
-    return '<div class="history-card">' +
+    const dataAudiences = batchAudiences.join(',');
+
+    return '<div class="history-card" data-audiences="' + escapeHtml(dataAudiences) + '">' +
       '<div class="history-meta"><div class="history-title">' + escapeHtml(batch.source || 'Untitled') + (snippet ? ' — ' + escapeHtml(snippet) + '...' : '') + '</div>' +
       '<div class="history-date">' + date + '</div></div>' +
       (batch.url ? '<div class="history-url"><a href="' + escapeHtml(batch.url) + '" target="_blank">' + escapeHtml(batch.url) + '</a></div>' : '') +
-      '<div class="history-platforms">' + platformBadges + hookBadge + '</div>' +
+      '<div class="history-platforms">' + platformBadges + audienceBadges + hookBadge + '</div>' +
       summaryHtml +
       '<button class="history-expand-btn" onclick="this.nextElementSibling.classList.toggle(\'open\'); this.textContent = this.nextElementSibling.classList.contains(\'open\') ? \'Hide posts\' : \'View posts\'">View posts</button>' +
       '<div class="history-posts">' + postsHtml + '</div></div>';
   }).join('');
 }
 
+// Filter history by audience — called from the filter chips in index.html
+function filterHistory(audience) {
+  const list = document.getElementById('historyList');
+  if (!list || !list._allBatches) return;
+  if (audience === 'all') {
+    _renderHistoryBatches(list, list._allBatches);
+    return;
+  }
+  const filtered = list._allBatches.filter(b =>
+    b.audiences && b.audiences.includes(audience)
+  );
+  _renderHistoryBatches(list, filtered);
+}
+
+// ─── HOOKS ───────────────────────────────────────────────────────────────────
+
 async function saveHook() {
   const name = document.getElementById('hookName').value.trim();
   const text = document.getElementById('hookText').value.trim();
+  const audienceTag = document.getElementById('hookAudience')?.value || '';
   if (!name || !text) {
     document.getElementById('hookStatus').innerHTML = '<span class="status-err">Please fill in both fields.</span>';
     return;
   }
-  const hook = { id: Date.now(), name, text, persona: activePersona };
+  const hook = { id: Date.now(), name, text, persona: activePersona, audienceTag };
   const hooks = Storage.get(hooksStorageKey(), []);
   hooks.push(hook);
   Storage.set(hooksStorageKey(), hooks);
@@ -528,7 +667,7 @@ async function saveHook() {
   const scriptUrl = Storage.get('scriptUrl', '');
   if (scriptUrl) {
     try {
-      const params = new URLSearchParams({ action: 'saveHook', id: hook.id, name: hook.name, text: hook.text, persona: activePersona, hooksTab: getPersona().hooksTab });
+      const params = new URLSearchParams({ action: 'saveHook', id: hook.id, name: hook.name, text: hook.text, persona: activePersona, audienceTag, hooksTab: getPersona().hooksTab });
       await fetch(proxyUrl(scriptUrl + '?' + params.toString()));
     } catch (err) {
       console.warn('Could not save hook to Sheet:', err.message);
@@ -537,6 +676,7 @@ async function saveHook() {
 
   document.getElementById('hookName').value = '';
   document.getElementById('hookText').value = '';
+  if (document.getElementById('hookAudience')) document.getElementById('hookAudience').value = '';
   document.getElementById('hookStatus').innerHTML = '<span class="status-ok">Hook saved!</span>';
   setTimeout(() => { const el = document.getElementById('hookStatus'); if (el) el.innerHTML = ''; }, 2000);
   await renderHooks();
@@ -607,6 +747,19 @@ async function saveEditHook(id) {
   populateHookDropdown();
 }
 
+// Filter hooks by audience tag — called from the filter chips in index.html
+function filterHooksList(audience) {
+  const items = document.querySelectorAll('.hook-card[data-hook-audience]');
+  items.forEach(item => {
+    if (audience === 'all') {
+      item.style.display = '';
+    } else {
+      const tag = item.dataset.hookAudience || '';
+      item.style.display = (tag === audience || tag === '') ? '' : 'none';
+    }
+  });
+}
+
 async function renderHooks() {
   const list = document.getElementById('hooksList');
   const empty = document.getElementById('hooksEmpty');
@@ -633,23 +786,33 @@ async function renderHooks() {
     return;
   }
   if (empty) empty.style.display = 'none';
-  list.innerHTML = hooks.map(hook =>
-    '<div class="hook-card" id="hook-card-' + hook.id + '">' +
-    '<div class="hook-card-top">' +
-    '<div class="hook-name">' + escapeHtml(hook.name) + '</div>' +
-    '<div class="hook-card-actions">' +
-    '<button class="edit-btn" onclick="startEditHook(\'' + hook.id + '\')">Edit</button>' +
-    '<button class="delete-btn" onclick="deleteHook(\'' + hook.id + '\')">Remove</button>' +
-    '</div></div>' +
-    '<div class="hook-text" id="hook-text-' + hook.id + '">' + escapeHtml(hook.text) + '</div>' +
-    '<div class="hook-edit-form" id="hook-edit-' + hook.id + '" style="display:none;">' +
-    '<input type="text" class="field-input" id="hook-edit-name-' + hook.id + '" value="' + escapeHtml(hook.name) + '" style="margin-bottom:8px;" />' +
-    '<textarea class="content-area" id="hook-edit-text-' + hook.id + '" style="min-height:60px;margin-bottom:8px;">' + escapeHtml(hook.text) + '</textarea>' +
-    '<div style="display:flex;gap:8px;">' +
-    '<button class="save-btn" onclick="saveEditHook(\'' + hook.id + '\')" style="padding:6px 14px;font-size:12px;">Save</button>' +
-    '<button class="delete-btn" onclick="cancelEditHook(\'' + hook.id + '\')" style="padding:6px 14px;">Cancel</button>' +
-    '</div></div></div>'
-  ).join('');
+
+  const AUDIENCE_LABELS = { fqhc: '🏥 FQHC', veterans: '🎖️ Veterans', navigators: '🧭 Navigators' };
+
+  list.innerHTML = hooks.map(hook => {
+    const audienceTag = hook.audienceTag || '';
+    const audienceBadge = audienceTag && AUDIENCE_LABELS[audienceTag]
+      ? '<span class="hook-audience-badge">' + AUDIENCE_LABELS[audienceTag] + '</span>'
+      : '';
+    return '<div class="hook-card" id="hook-card-' + hook.id + '" data-hook-audience="' + escapeHtml(audienceTag) + '">' +
+      '<div class="hook-card-top">' +
+      '<div style="display:flex;align-items:center;gap:8px;">' +
+      '<div class="hook-name">' + escapeHtml(hook.name) + '</div>' +
+      audienceBadge +
+      '</div>' +
+      '<div class="hook-card-actions">' +
+      '<button class="edit-btn" onclick="startEditHook(\'' + hook.id + '\')">Edit</button>' +
+      '<button class="delete-btn" onclick="deleteHook(\'' + hook.id + '\')">Remove</button>' +
+      '</div></div>' +
+      '<div class="hook-text" id="hook-text-' + hook.id + '">' + escapeHtml(hook.text) + '</div>' +
+      '<div class="hook-edit-form" id="hook-edit-' + hook.id + '" style="display:none;">' +
+      '<input type="text" class="field-input" id="hook-edit-name-' + hook.id + '" value="' + escapeHtml(hook.name) + '" style="margin-bottom:8px;" />' +
+      '<textarea class="content-area" id="hook-edit-text-' + hook.id + '" style="min-height:60px;margin-bottom:8px;">' + escapeHtml(hook.text) + '</textarea>' +
+      '<div style="display:flex;gap:8px;">' +
+      '<button class="save-btn" onclick="saveEditHook(\'' + hook.id + '\')" style="padding:6px 14px;font-size:12px;">Save</button>' +
+      '<button class="delete-btn" onclick="cancelEditHook(\'' + hook.id + '\')" style="padding:6px 14px;">Cancel</button>' +
+      '</div></div></div>';
+  }).join('');
   populateHookDropdown();
 }
 
@@ -682,6 +845,8 @@ function populateHookDropdown() {
     articleSelect.value = articleCurrent;
   }
 }
+
+// ─── SETTINGS ────────────────────────────────────────────────────────────────
 
 function saveApiKey() {
   const key = document.getElementById('apiKeyInput').value.trim();
@@ -729,11 +894,33 @@ function saveScriptUrl() {
 
 function saveDefaults() {
   const tone = document.getElementById('defaultTone').value;
-  Storage.set('userDefaults', { tone });
+
+  // Save audience defaults
+  const audiencePrefs = {
+    fqhc: document.getElementById('defaultAudienceFqhc')?.checked ?? true,
+    veterans: document.getElementById('defaultAudienceVeterans')?.checked ?? false,
+    navigators: document.getElementById('defaultAudienceNavigators')?.checked ?? false
+  };
+  Storage.set('userDefaults', { tone, audiencePrefs });
+
+  // Apply tone immediately
   const composeTone = document.getElementById('toneSelect');
   if (composeTone && tone) composeTone.value = tone;
+
+  // Apply audience defaults to compose checkboxes
+  applyDefaultAudiences(audiencePrefs);
+
   document.getElementById('prefsStatus').innerHTML = '<span class="status-ok">Preferences saved.</span>';
   setTimeout(() => { const el = document.getElementById('prefsStatus'); if (el) el.innerHTML = ''; }, 3000);
+}
+
+function applyDefaultAudiences(prefs) {
+  if (!prefs) return;
+  ['fqhc', 'veterans', 'navigators'].forEach(a => {
+    document.querySelectorAll('input[name="audience"][value="' + a + '"]').forEach(el => {
+      el.checked = prefs[a] || false;
+    });
+  });
 }
 
 function loadSettings() {
@@ -748,9 +935,20 @@ function loadSettings() {
   const scriptUrl = Storage.get('scriptUrl', '');
   const scriptInput = document.getElementById('scriptUrlInput');
   if (scriptInput && scriptUrl) scriptInput.value = scriptUrl;
+
   const defaults = Storage.get('userDefaults', {});
+
   const toneEl = document.getElementById('defaultTone');
   if (toneEl && defaults.tone) toneEl.value = defaults.tone;
+
+  // Load saved audience defaults into settings checkboxes
+  if (defaults.audiencePrefs) {
+    const ap = defaults.audiencePrefs;
+    if (document.getElementById('defaultAudienceFqhc')) document.getElementById('defaultAudienceFqhc').checked = ap.fqhc !== undefined ? ap.fqhc : true;
+    if (document.getElementById('defaultAudienceVeterans')) document.getElementById('defaultAudienceVeterans').checked = ap.veterans || false;
+    if (document.getElementById('defaultAudienceNavigators')) document.getElementById('defaultAudienceNavigators').checked = ap.navigators || false;
+  }
+
   const apiEl = document.getElementById('apiKeyStatus');
   if (apiEl) {
     apiEl.innerHTML = apiKey
@@ -771,6 +969,8 @@ function loadSettings() {
   }
   updatePerplexityBadge();
 }
+
+// ─── NAV ─────────────────────────────────────────────────────────────────────
 
 function initNav() {
   document.querySelectorAll('.nav-item').forEach(btn => {
@@ -793,6 +993,24 @@ function initNav() {
       document.querySelector('.nav-item[data-view="compose"]').classList.add('active');
       document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
       document.getElementById('view-compose').classList.remove('hidden');
+    });
+  });
+
+  // History audience filter chips
+  document.querySelectorAll('[data-audience-filter]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-audience-filter]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      filterHistory(btn.dataset.audienceFilter);
+    });
+  });
+
+  // Hook audience filter chips
+  document.querySelectorAll('[data-hook-filter]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-hook-filter]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      filterHooksList(btn.dataset.hookFilter);
     });
   });
 }
@@ -818,9 +1036,17 @@ async function init() {
     const el = document.getElementById('toneSelect');
     if (el) el.value = defaults.tone;
   }
+
+  // Apply saved audience defaults to compose checkboxes
+  if (defaults.audiencePrefs) {
+    applyDefaultAudiences(defaults.audiencePrefs);
+  }
+
   populateHookDropdown();
   await renderHooks();
 }
+
+// ─── ARTICLE WRITER HELPERS ──────────────────────────────────────────────────
 
 function clearArticleFields() {
   document.querySelectorAll('.source-content').forEach(el => el.value = '');
@@ -840,13 +1066,6 @@ function clearArticleFields() {
 }
 
 // ─── DISCOVER / PERPLEXITY ────────────────────────────────────────────────────
-
-const DISCOVER_DEFAULT_TOPICS = [
-  'FQHC federal funding policy',
-  'HRSA health center program',
-  'community health center Medicaid',
-  'NACHC primary care policy'
-];
 
 function addDiscoverTopic() {
   const container = document.getElementById('discoverTopicsContainer');
@@ -869,11 +1088,23 @@ async function discoverArticles() {
   }
 
   const topicInputs = document.querySelectorAll('.discover-topic-input');
-  const topics = Array.from(topicInputs).map(i => i.value.trim()).filter(Boolean);
-  if (!topics.length) {
+  const userTopics = Array.from(topicInputs).map(i => i.value.trim()).filter(Boolean);
+  if (!userTopics.length) {
     document.getElementById('discoverError').textContent = 'Please enter at least one search topic.';
     return;
   }
+
+  // Read selected discover audiences and enrich topic queries
+  const discoverAudienceEls = document.querySelectorAll('input[name="discoverAudience"]:checked');
+  const discoverAudiences = Array.from(discoverAudienceEls).map(el => el.value);
+  const audienceTerms = discoverAudiences.flatMap(a => (AUDIENCE_PERSONAS[a] || {}).searchTerms || []);
+
+  // Enrich each topic with audience-specific keywords
+  const enrichedTopics = userTopics.map(topic =>
+    audienceTerms.length > 0
+      ? topic + ' (' + audienceTerms.slice(0, 2).join(', ') + ')'
+      : topic
+  );
 
   const recency = document.getElementById('discoverRecency').value;
   const count = parseInt(document.getElementById('discoverCount').value) || 5;
@@ -890,14 +1121,20 @@ async function discoverArticles() {
   resultsEl.innerHTML = '<div class="loading-msg">Searching for recent articles via Perplexity...</div>';
 
   const recencyLabel = { day: 'the past 24 hours', week: 'the past week', month: 'the past month' }[recency];
-  const topicList = topics.map((t, i) => `${i + 1}. ${t}`).join('\n');
+  const topicList = enrichedTopics.map((t, i) => (i + 1) + '. ' + t).join('\n');
+
+  const audienceContext = discoverAudiences.length
+    ? 'Prioritize articles relevant to: ' + discoverAudiences.map(a => (AUDIENCE_PERSONAS[a] || {}).label || a).join(', ') + '.'
+    : '';
 
   const prompt = `You are a research assistant for a healthcare content team that creates content for ${persona.fullLabel}.
 
 Search for and return ${count} recently published articles or news items from ${recencyLabel} relevant to these topics:
 ${topicList}
 
-For each article, return structured data. Focus on articles from authoritative sources: government agencies (HRSA, CMS, HHS), major healthcare associations (NACHC, AAFP, AHA), academic journals, and reputable healthcare news outlets (Health Affairs, Modern Healthcare, Kaiser Health News, Stat News, etc.).
+${audienceContext}
+
+For each article, return structured data. Focus on articles from authoritative sources: government agencies (HRSA, CMS, HHS, VA), major healthcare associations (NACHC, AAFP, AHA, DAV), academic journals, and reputable healthcare news outlets (Health Affairs, Modern Healthcare, Kaiser Health News, Stat News, etc.).
 
 Respond with ONLY a valid JSON array — no markdown, no explanation, no code fences:
 [
@@ -906,13 +1143,13 @@ Respond with ONLY a valid JSON array — no markdown, no explanation, no code fe
     "source": "Publisher or organization name",
     "url": "Full URL if available, or empty string",
     "date": "Publication date or 'Recent' if unknown",
-    "summary": "2-3 sentence summary of what the article covers and why it matters to ${persona.fullLabel}",
-    "relevance": "One sentence explaining specifically why this is relevant to ${persona.fullLabel}",
+    "summary": "2-3 sentence summary of what the article covers and why it matters",
+    "relevance": "One sentence explaining specifically why this is relevant to the selected audiences",
     "topic": "Which of the search topics this relates to"
   }
 ]
 
-Return exactly ${count} articles. If you cannot find ${count} distinct articles, return as many as you can find. Order by most relevant to ${persona.fullLabel} first.`;
+Return exactly ${count} articles. Order by most relevant first.`;
 
   try {
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
@@ -1074,31 +1311,6 @@ function sendToWriter(idx) {
 
 // ─── ARTICLE WRITER ───────────────────────────────────────────────────────────
 
-window.generatePosts = generatePosts;
-window.copyPost = copyPost;
-window.copySummary = copySummary;
-window.stopGeneration = stopGeneration;
-window.saveApiKey = saveApiKey;
-window.savePerplexityKey = savePerplexityKey;
-window.saveScriptUrl = saveScriptUrl;
-window.saveDefaults = saveDefaults;
-window.saveHook = saveHook;
-window.deleteHook = deleteHook;
-window.startEditHook = startEditHook;
-window.cancelEditHook = cancelEditHook;
-window.saveEditHook = saveEditHook;
-window.switchPersona = switchPersona;
-window.generateArticle = generateArticle;
-window.copyArticleSection = copyArticleSection;
-window.addSource = addSource;
-window.removeSource = removeSource;
-window.clearArticleFields = clearArticleFields;
-window.discoverArticles = discoverArticles;
-window.addDiscoverTopic = addDiscoverTopic;
-window.sendToCompose = sendToCompose;
-window.sendToWriter = sendToWriter;
-window.copyDiscoverUrl = copyDiscoverUrl;
-
 function addSource() {
   const container = document.getElementById('sourcesContainer');
   const count = container.querySelectorAll('.source-block').length + 1;
@@ -1155,8 +1367,6 @@ const ARTICLE_TYPES = {
   }
 };
 
-// ─── CHANGE 1: HALLUCINATION CHECK (second API call) ─────────────────────────
-
 async function runHallucinationCheck(article, sourcesBlock, apiKey) {
   const takeawayLines = (article.takeaways || []).map((t, i) => {
     const claim = typeof t === 'object' ? t.claim : t;
@@ -1164,7 +1374,7 @@ async function runHallucinationCheck(article, sourcesBlock, apiKey) {
     return (i + 1) + '. ' + claim + source;
   }).join('\n');
 
-  const checkPrompt = `You are a fact-checking assistant. Your job is to review a generated article and verify that every factual claim is directly supported by the provided source material. You are not checking writing quality — only whether claims are grounded in the sources.
+  const checkPrompt = `You are a fact-checking assistant. Your job is to review a generated article and verify that every factual claim is directly supported by the provided source material.
 
 SOURCES:
 ${sourcesBlock}
@@ -1179,12 +1389,7 @@ Article Body:
 ${article.body}
 
 INSTRUCTIONS:
-Review each factual claim, statistic, and specific assertion in the article. Flag anything that:
-- Cannot be found in the sources
-- Contradicts or misrepresents the sources
-- Appears to be invented or drawn from outside knowledge
-
-Do NOT flag reasonable editorial framing or synthesis that accurately reflects the sources. Only flag concrete claims that cannot be traced back to the source material.
+Review each factual claim, statistic, and specific assertion in the article. Flag anything that cannot be found in the sources, contradicts the sources, or appears to be invented.
 
 Respond with ONLY a valid JSON object — no markdown, no explanation, no code fences:
 {
@@ -1196,10 +1401,8 @@ Respond with ONLY a valid JSON object — no markdown, no explanation, no code f
       "issue": "brief description — not found in sources / contradicts sources / appears fabricated"
     }
   ],
-  "summary": "1-2 sentence overall assessment of how well the article stays grounded in the source material"
-}
-
-If no issues are found, return an empty issues array and set passed to true.`;
+  "summary": "1-2 sentence overall assessment"
+}`;
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -1263,8 +1466,6 @@ function renderHallucinationCheck(check, container) {
   container.appendChild(card);
 }
 
-// ─── GENERATE ARTICLE ─────────────────────────────────────────────────────────
-
 async function generateArticle() {
   const apiKey = Storage.get('apiKey', '');
   if (!apiKey) {
@@ -1293,6 +1494,14 @@ async function generateArticle() {
   const type = document.getElementById('articleType').value;
   const meta = ARTICLE_TYPES[type];
 
+  // Read article writer audience selection
+  const articleAudienceEls = document.querySelectorAll('input[name="articleAudience"]:checked');
+  const articleAudiences = Array.from(articleAudienceEls).map(el => el.value);
+  const audienceContext = articleAudiences.length
+    ? 'Write this article for the following audiences: ' + articleAudiences.map(a => (AUDIENCE_PERSONAS[a] || {}).label || a).join(', ') + '. ' +
+      articleAudiences.map(a => (AUDIENCE_PERSONAS[a] || {}).persona || '').filter(Boolean).join(' ')
+    : '';
+
   document.getElementById('articleError').textContent = '';
   const btn = document.getElementById('articleGenBtn');
   const stopBtn = document.getElementById('articleStopBtn');
@@ -1311,28 +1520,23 @@ async function generateArticle() {
     '--- SOURCE ' + s.index + (s.org ? ' (' + s.org + ')' : '') + (s.url ? ' | ' + s.url : '') + ' ---\n' + s.content
   ).join('\n\n');
 
-  // CHANGE 2: Stronger prompt — refusal instructions + sourced takeaways schema
-  const prompt = `You are an expert healthcare content writer with deep knowledge of the FQHC ecosystem: HRSA funding, NACHC, state PCAs, 340B Drug Pricing Program, Medicaid, value-based care, workforce, and health equity. You write for Afya, a company that helps FQHCs capture revenue through automated care coordination documentation.
+  const prompt = `You are an expert healthcare content writer. You write for Afya, a company that helps health centers capture revenue through automated care coordination documentation.
 
-Write content that synthesizes ALL of the sources below into a single cohesive piece for an FQHC audience. Every source must contribute meaningfully to the article — do not focus on just one source and ignore the others. Draw connections between sources only where those connections are clearly supported by the source material itself. Do not invent connections or introduce topics not present in the sources. Write content based STRICTLY AND ONLY on the sources provided below. Every claim, fact, statistic, and assertion in the article must come directly from the source material. Do not invent examples, fabricate statistics, add outside knowledge, or make connections that are not explicitly supported by the sources. If a source does not contain enough information to support a claim, do not make that claim. Stay grounded in what the sources actually say.
+${audienceContext ? 'AUDIENCE CONTEXT:\n' + audienceContext + '\n' : ''}
+Write content that synthesizes ALL of the sources below into a single cohesive piece. Every source must contribute meaningfully. Draw connections between sources only where clearly supported by the source material. Write content based STRICTLY AND ONLY on the sources provided. Do not invent examples, fabricate statistics, or add outside knowledge.
 ${articleHook ? '\nMESSAGING HOOK — weave this angle throughout the article: ' + articleHook.text : ''}
-${angle ? '\nMESSAGING ANGLE: Use this to guide the editorial direction and emphasis of the article only. Do not introduce any topics, examples, or claims from this angle that are not already supported by the source material above: ' + angle : ''}
+${angle ? '\nMESSAGING ANGLE: ' + angle : ''}
 CONTENT TYPE: ${meta.label} (${meta.wordCount})
 
 INSTRUCTIONS:
 ${meta.instructions}
 
-CRITICAL WRITING RULES — never violate these under any circumstances:
-- Never use em dashes (the — character). Use a comma, period, or rewrite the sentence instead.
-- Never use en dashes (the - character used as a dash).
-- Never use the word "delve" or "dive into".
-- Never use phrases like "it is worth noting", "it is important to note", "needless to say".
-- Never use "in today's landscape", "in today's world", or similar filler openers.
+CRITICAL WRITING RULES:
+- Never use em dashes (—). Use a comma, period, or rewrite the sentence instead.
+- Never use "delve", "dive into", "it is worth noting", "in today's landscape", "crucial", or "pivotal".
 - Never start a sentence with "Additionally" or "Furthermore" as a lazy connector.
-- Never use the word "crucial" or "pivotal".
-- Write like a skilled human journalist. Use commas, periods, and sentence structure to create flow and emphasis.
-- If the sources do not contain enough information to write a full ${meta.wordCount} article, write a shorter piece using only what the sources support. Never pad with outside knowledge to meet the word count.
-- If a section cannot be written from the sources alone, omit it entirely rather than filling it with assumptions.
+- Write like a skilled human journalist.
+- If sources don't contain enough for the full word count, write shorter rather than padding with outside knowledge.
 
 SOURCES:
 ${sourcesBlock}
@@ -1341,16 +1545,11 @@ Respond with ONLY a valid JSON object — no markdown, no explanation, no code f
 {
   "title": "Compelling article title",
   "takeaways": [
-    {"claim": "key takeaway text here", "source": "Source 1"},
-    {"claim": "key takeaway text here", "source": "Source 2"},
-    {"claim": "key takeaway text here", "source": "Source 1"},
-    {"claim": "key takeaway text here", "source": "Source 3"}
+    {"claim": "key takeaway text here", "source": "Source 1"}
   ],
-  "body": "Full article text here. Use \\n\\n for paragraph breaks. Use ## for subheadings.",
-  "cta": "A specific, actionable call to action sentence or two — what should the reader do next?"
-}
-
-For each takeaway, the "source" field must reference which source number (e.g. "Source 1", "Source 2") the claim comes from. If a takeaway draws from multiple sources, list them (e.g. "Source 1, Source 2").`;
+  "body": "Full article text. Use \\n\\n for paragraph breaks. Use ## for subheadings.",
+  "cta": "A specific, actionable call to action."
+}`;
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -1379,10 +1578,8 @@ For each takeaway, the "source" field must reference which source number (e.g. "
     const clean = raw.replace(/```json|```/g, '').trim();
     const article = JSON.parse(clean);
 
-    // Render article first so user sees it immediately
     renderArticle(article, meta, resultsEl);
 
-    // Then run the hallucination check as a second pass
     const checkLoadingEl = document.createElement('div');
     checkLoadingEl.className = 'loading-msg';
     checkLoadingEl.textContent = 'Running source grounding check...';
@@ -1395,14 +1592,8 @@ For each takeaway, the "source" field must reference which source number (e.g. "
     } catch (checkErr) {
       checkLoadingEl.remove();
       console.warn('Hallucination check failed:', checkErr.message);
-      const checkErrDiv = document.createElement('div');
-      checkErrDiv.className = 'error-msg';
-      checkErrDiv.style.marginTop = '12px';
-      checkErrDiv.textContent = 'Source grounding check could not be completed: ' + checkErr.message;
-      resultsEl.appendChild(checkErrDiv);
     }
 
-    // Save to Google Sheet
     const scriptUrl = Storage.get('scriptUrl', '');
     if (scriptUrl) {
       try {
@@ -1417,6 +1608,7 @@ For each takeaway, the "source" field must reference which source number (e.g. "
             source: sources.map(s => s.org).filter(Boolean).join(', '),
             url: sources.map(s => s.url).filter(Boolean).join(', '),
             angle: angle || '',
+            audiences: articleAudiences.join(', '),
             title: article.title,
             takeaways: (article.takeaways || []).map((t, i) => {
               const claim = typeof t === 'object' ? t.claim : t;
@@ -1448,7 +1640,6 @@ For each takeaway, the "source" field must reference which source number (e.g. "
   if (clearBtn) clearBtn.style.display = 'inline-flex';
 }
 
-// CHANGE 3: renderArticle updated to show source attribution badges on takeaways
 function renderArticle(article, meta, container) {
   const bodyHtml = (article.body || '')
     .split('\n\n')
@@ -1460,7 +1651,6 @@ function renderArticle(article, meta, container) {
     })
     .join('');
 
-  // Handle both old string format and new {claim, source} object format
   const takeawaysHtml = (article.takeaways || []).map(t => {
     if (typeof t === 'object' && t.claim) {
       return '<li>' + escapeHtml(t.claim) +
@@ -1478,7 +1668,6 @@ function renderArticle(article, meta, container) {
 
   container.innerHTML = `
     <div class="article-card">
-
       <div class="article-section">
         <div class="article-section-header">
           <span class="article-section-label">Title</span>
@@ -1486,7 +1675,6 @@ function renderArticle(article, meta, container) {
         </div>
         <div class="article-title-text">${escapeHtml(article.title)}</div>
       </div>
-
       <div class="article-section">
         <div class="article-section-header">
           <span class="article-section-label">Key takeaways</span>
@@ -1494,7 +1682,6 @@ function renderArticle(article, meta, container) {
         </div>
         <ul class="article-takeaways">${takeawaysHtml}</ul>
       </div>
-
       <div class="article-section">
         <div class="article-section-header">
           <span class="article-section-label">${escapeHtml(meta.label)} — ${escapeHtml(meta.wordCount)}</span>
@@ -1502,7 +1689,6 @@ function renderArticle(article, meta, container) {
         </div>
         <div class="article-body">${bodyHtml}</div>
       </div>
-
       <div class="article-section">
         <div class="article-section-header">
           <span class="article-section-label">Call to action</span>
@@ -1510,14 +1696,12 @@ function renderArticle(article, meta, container) {
         </div>
         <div class="article-cta">${escapeHtml(article.cta)}</div>
       </div>
-
       <div class="article-copy-all">
         <button class="generate-btn" style="margin-top:0;" onclick="copyArticleSection(this, ${JSON.stringify(article.title + '\n\nKEY TAKEAWAYS\n' + takeawaysText + '\n\n' + article.body + '\n\n' + article.cta)})">
           Copy full article
           <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
         </button>
       </div>
-
     </div>
   `;
 }
@@ -1530,5 +1714,34 @@ function copyArticleSection(btn, text) {
     setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('copied'); }, 2000);
   });
 }
+
+// ─── GLOBAL EXPORTS ───────────────────────────────────────────────────────────
+
+window.generatePosts = generatePosts;
+window.copyPost = copyPost;
+window.copySummary = copySummary;
+window.stopGeneration = stopGeneration;
+window.saveApiKey = saveApiKey;
+window.savePerplexityKey = savePerplexityKey;
+window.saveScriptUrl = saveScriptUrl;
+window.saveDefaults = saveDefaults;
+window.saveHook = saveHook;
+window.deleteHook = deleteHook;
+window.startEditHook = startEditHook;
+window.cancelEditHook = cancelEditHook;
+window.saveEditHook = saveEditHook;
+window.switchPersona = switchPersona;
+window.generateArticle = generateArticle;
+window.copyArticleSection = copyArticleSection;
+window.addSource = addSource;
+window.removeSource = removeSource;
+window.clearArticleFields = clearArticleFields;
+window.discoverArticles = discoverArticles;
+window.addDiscoverTopic = addDiscoverTopic;
+window.sendToCompose = sendToCompose;
+window.sendToWriter = sendToWriter;
+window.copyDiscoverUrl = copyDiscoverUrl;
+window.filterHistory = filterHistory;
+window.filterHooksList = filterHooksList;
 
 document.addEventListener('DOMContentLoaded', init);
