@@ -79,7 +79,7 @@ Keep language accessible. Emphasize practical steps and community-based support.
 };
 
 
-const TONE_DESCRIPTIONS =   
+const TONE_DESCRIPTIONS = {
   informative: 'Clear, factual, and educational — share key facts and explain why it matters.',
   thought_leadership: 'Authoritative and insightful — offer strategic perspective on what this means for the sector.',
   urgent: 'Action-oriented and advocacy-focused — highlight urgency and call the audience to pay attention or act.',
