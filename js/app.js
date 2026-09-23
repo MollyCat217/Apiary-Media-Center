@@ -314,7 +314,7 @@ Respond with ONLY a valid JSON object — no markdown, no explanation, no code f
     },
     signal: abortController ? abortController.signal : undefined,
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 1000,
       messages: [{ role: 'user', content: summaryPrompt }]
     })
@@ -484,7 +484,7 @@ Use \\n for line breaks inside the post text.`;
           },
           signal: abortController ? abortController.signal : undefined,
           body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
+            model: 'claude-sonnet-4-6',
             max_tokens: 2000,
             system: persona.systemPrompt,
             messages: [{ role: 'user', content: userPrompt }]
@@ -1414,7 +1414,7 @@ Respond with ONLY a valid JSON object — no markdown, no explanation, no code f
     },
     signal: abortController ? abortController.signal : undefined,
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 1500,
       messages: [{ role: 'user', content: checkPrompt }]
     })
@@ -1562,7 +1562,7 @@ Respond with ONLY a valid JSON object — no markdown, no explanation, no code f
       },
       signal: abortController ? abortController.signal : undefined,
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: 4000,
         messages: [{ role: 'user', content: prompt }]
       })
