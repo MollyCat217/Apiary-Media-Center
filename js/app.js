@@ -1018,7 +1018,7 @@ function initNav() {
   });
 }
 
-async function init() {
+async function init(updateAfyaContextDates();) {
   const saved = Storage.get('activePersona', 'fqhc');
   if (PERSONAS[saved]) activePersona = saved;
 
