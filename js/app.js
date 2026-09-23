@@ -1717,6 +1717,58 @@ function copyArticleSection(btn, text) {
 
 // ─── GLOBAL EXPORTS ───────────────────────────────────────────────────────────
 
+
+function saveAfyaContext() {
+  const text = document.getElementById('afyaContextInput').value.trim();
+  if (!text) {
+    document.getElementById('afyaContextStatus').innerHTML = '<span class="status-err">Please paste your product info first.</span>';
+    return;
+  }
+  const timestamp = new Date().toISOString();
+  Storage.set('afyaContext', { text, timestamp });
+  document.getElementById('afyaContextStatus').innerHTML = '<span class="status-ok">Afya context saved!</span>';
+  setTimeout(() => {
+    const el = document.getElementById('afyaContextStatus');
+    if (el) el.innerHTML = '';
+  }, 2000);
+  updateAfyaContextDates();
+}
+
+function clearAfyaContext() {
+  Storage.set('afyaContext', null);
+  const input = document.getElementById('afyaContextInput');
+  if (input) input.value = '';
+  updateAfyaContextDates();
+  document.getElementById('afyaContextStatus').innerHTML = '<span class="status-ok">Context cleared.</span>';
+  setTimeout(() => {
+    const el = document.getElementById('afyaContextStatus');
+    if (el) el.innerHTML = '';
+  }, 2000);
+}
+
+function loadAfyaContext() {
+  const ctx = Storage.get('afyaContext', null);
+  const input = document.getElementById('afyaContextInput');
+  if (input && ctx) input.value = ctx.text;
+  updateAfyaContextDates();
+}
+
+function updateAfyaContextDates() {
+  const ctx = Storage.get('afyaContext', null);
+  const dateStr = ctx
+    ? 'Last updated: ' + new Date(ctx.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : 'No context saved yet';
+  ['afyaLastUpdated', 'afyaContextDateCompose', 'afyaContextDateArticle'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = dateStr;
+  });
+}
+
+function getAfyaContextBlock() {
+  const ctx = Storage.get('afyaContext', null);
+  if (!ctx || !ctx.text) return '';
+  return `\n\nAFYA PRODUCT CONTEXT — use this to add an opening paragraph connecting the news to the problem Afya solves, and a closing "How Afya Can Help" section. Do not fabricate any product claims beyond what is stated here. Weave naturally — not as a hard sell:\n${ctx.text}`;
+}
 window.generatePosts = generatePosts;
 window.copyPost = copyPost;
 window.copySummary = copySummary;
