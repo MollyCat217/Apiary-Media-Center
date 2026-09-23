@@ -1800,5 +1800,7 @@ window.sendToWriter = sendToWriter;
 window.copyDiscoverUrl = copyDiscoverUrl;
 window.filterHistory = filterHistory;
 window.filterHooksList = filterHooksList;
+window.saveAfyaContext = saveAfyaContext;
+window.clearAfyaContext = clearAfyaContext;
 
 document.addEventListener('DOMContentLoaded', init);
