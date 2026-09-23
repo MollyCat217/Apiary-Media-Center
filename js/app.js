@@ -1490,6 +1490,7 @@ async function generateArticle() {
   }
 
   const angle = document.getElementById('articleAngle').value.trim();
+  const includeAfyaArticle = document.getElementById('includeAfyaArticle')?.checked && Storage.get('afyaContext', null);
   const articleHooks = Storage.get(hooksStorageKey(), []);
   const articleHookId = parseInt(document.getElementById('articleHookSelect')?.value);
   const articleHook = articleHooks.find(h => h.id === articleHookId) || null;
