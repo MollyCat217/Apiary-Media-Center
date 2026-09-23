@@ -384,6 +384,7 @@ async function generatePosts() {
 
   const tone = document.getElementById('toneSelect').value;
   const orgName = 'Afya';
+  const includeAfya = document.getElementById('includeAfyaCompose')?.checked && Storage.get('afyaContext', null);
   const hooks = Storage.get(hooksStorageKey(), []);
   const selectedHookId = parseInt(document.getElementById('hookSelect')?.value);
   const activeHook = hooks.find(h => h.id === selectedHookId) || null;
