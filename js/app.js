@@ -472,7 +472,8 @@ Tailor the language, framing, and calls to action specifically to the TARGET AUD
 Respond with ONLY a valid JSON object — no markdown, no explanation, no code fences:
 {"platform": "${platform}", "audience": "${audienceKey}", "audienceLabel": "${audienceMeta.label}", "post": "your post text here"}
 
-Use \\n for line breaks inside the post text.`;
+Use \\n for line breaks inside the post text.
+${includeAfya ? getAfyaContextBlock() : ''}`;
 
       try {
         const response = await fetch('https://api.anthropic.com/v1/messages', {
