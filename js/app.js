@@ -59,21 +59,21 @@ const AUDIENCE_PERSONAS = {
     label: 'FQHC Community',
     searchTerms: ['FQHC', 'federally qualified health center', 'HRSA', 'NACHC', 'community health center'],
     persona: `Writing for health center staff, clinical leaders, and community health advocates at FQHCs.
-Reference HRSA Section 330, 340B, UDS metrics, sliding-fee scale access, and the mission of serving underserved communities.
+Reference HRSA Section 330, 340B, UDS metrics, sliding-fee scale access, and the mission of serving underserved communities.'
 Use professional healthcare language familiar to FQHC staff.`
   },
   veterans: {
     label: 'Veterans & Military Families',
     searchTerms: ['veterans health', 'VA healthcare', 'military families', 'TRICARE', 'veteran benefits'],
     persona: `Writing for veterans, active-duty service members, and military families.
-Use plain, respectful language that honors service. Reference VA healthcare, TRICARE, the Mission Act, community care networks, and service-connected benefits.
+Use plain, respectful language that honors service. Reference VA healthcare, TRICARE, the Mission Act, community care networks, and service-connected benefits.'
 Lead with respect. Use "those who served" or "our veteran community." Avoid bureaucratic tone.`
   },
   navigators: {
     label: 'Family Health Navigators',
     searchTerms: ['health navigator', 'community health worker', 'Medicaid enrollment', 'ACA marketplace navigator', 'CMS navigator program'],
     persona: `Writing for certified health navigators, community health workers, and patient advocates.
-Use empowering, educational language. Reference the CMS Navigator Program, Marketplace enrollment, Medicaid/CHIP, CHWs, and supporting multi-generational or immigrant families.
+Use empowering, educational language. Reference the CMS Navigator Program, Marketplace enrollment, Medicaid/CHIP, CHWs, and supporting multi-generational or immigrant families.'
 Keep language accessible. Emphasize practical steps and community-based support.`
   }
 };
