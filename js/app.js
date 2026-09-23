@@ -985,6 +985,7 @@ function initNav() {
       if (view === 'history') renderHistory();
       if (view === 'settings') loadSettings();
       if (view === 'hooks') renderHooks();
+      if (view === 'afya') loadAfyaContext();
     });
   });
 
