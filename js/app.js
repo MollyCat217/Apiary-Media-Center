@@ -76,6 +76,8 @@ Keep language accessible. Emphasize practical steps and community-based support.
   }
 };
 
+
+const NO_EMDASH_RULE = 'Never use em dashes (—) or en dashes (–) in any content. Use commas, periods, or rewrite sentences instead. Never use the word "delve", "crucial", "pivotal", or phrases like "it is worth noting" or "in today\'s landscape".';
 const TONE_DESCRIPTIONS = {
   informative: 'Clear, factual, and educational — share key facts and explain why it matters.',
   thought_leadership: 'Authoritative and insightful — offer strategic perspective on what this means for the sector.',
