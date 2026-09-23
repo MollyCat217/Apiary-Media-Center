@@ -2,6 +2,8 @@
 
 let abortController = null;
 
+const NO_EMDASH_RULE = ' Never use em dashes or en dashes in any content. Use commas, periods, or rewrite sentences instead. Never use the word delve, crucial, or pivotal.';
+
 // ─── PERSONAS ────────────────────────────────────────────────────────────────
 // Includes original FQHC / RHC / CMHC / Navigator personas PLUS new Veterans
 
