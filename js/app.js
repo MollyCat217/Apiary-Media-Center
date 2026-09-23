@@ -1047,6 +1047,7 @@ async function init() {
 
   populateHookDropdown();
   await renderHooks();
+  updateAfyaContextDates();
 }
 
 // ─── ARTICLE WRITER HELPERS ──────────────────────────────────────────────────
