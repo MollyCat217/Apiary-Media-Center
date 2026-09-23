@@ -668,6 +668,35 @@
       </div>
     </div>
 
+
+    <!-- AFYA CONTEXT VIEW -->
+<div class="view hidden" id="view-afya">
+  <div class="view-header">
+    <h1>Afya Context</h1>
+    <p class="view-sub">Paste your latest product information here. When "Include Afya context" is checked on Compose or Write Article, this content will be woven into every generated piece.</p>
+  </div>
+
+  <div class="settings-grid">
+    <div class="settings-card" style="grid-column: 1 / -1;">
+      <div class="settings-card-title" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Product information</span>
+        <span id="afyaLastUpdated" style="font-size:11px;color:var(--ink-300);font-weight:400;"></span>
+      </div>
+      <div class="field-block" style="margin-top:1rem;">
+        <label class="field-label">Paste your Afya product info below</label>
+        <textarea id="afyaContextInput" class="content-area" style="min-height:300px;" placeholder="Paste everything here — elevator pitch, key features, differentiators, use cases, ROI stats, customer proof points, pricing, anything you want the AI to reference when writing about Afya.
+
+Example:
+Afya is a revenue capture platform for FQHCs that automatically documents care coordination time for billing. FQHCs lose an average of $180,000 per year in uncaptured CCM, PCM, and RPM revenue..."></textarea>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:0.5rem;">
+        <button class="save-btn" onclick="saveAfyaContext()">Save context</button>
+        <button class="delete-btn" onclick="clearAfyaContext()" style="padding:8px 16px;">Clear</button>
+      </div>
+      <div id="afyaContextStatus" style="margin-top:8px;font-size:12px;"></div>
+    </div>
+  </div>
+</div>
     <!-- ══════════════════════════════════════════
          HISTORY VIEW
     ══════════════════════════════════════════ -->
