@@ -1529,6 +1529,7 @@ ${audienceContext ? 'AUDIENCE CONTEXT:\n' + audienceContext + '\n' : ''}
 Write content that synthesizes ALL of the sources below into a single cohesive piece. Every source must contribute meaningfully. Draw connections between sources only where clearly supported by the source material. Write content based STRICTLY AND ONLY on the sources provided. Do not invent examples, fabricate statistics, or add outside knowledge.
 ${articleHook ? '\nMESSAGING HOOK — weave this angle throughout the article: ' + articleHook.text : ''}
 ${angle ? '\nMESSAGING ANGLE: ' + angle : ''}
+${includeAfyaArticle ? getAfyaContextBlock() : ''}
 CONTENT TYPE: ${meta.label} (${meta.wordCount})
 
 INSTRUCTIONS:
