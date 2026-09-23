@@ -210,7 +210,7 @@ function appendPost(item, container, audienceLabel) {
         ${audienceBadgeHtml}
       </div>
       <div class="post-actions">
-        <button class="action-btn" onclick="copyPost(this, ${JSON.stringify(item.post)})">Copy</button>
+       <button class="action-btn" onclick="copyPost(this, this.dataset.post)" data-post="${escapeHtml(item.post)}">Copy</button>
       </div>
     </div>
     <div class="post-body">${escapeHtml(item.post)}</div>
