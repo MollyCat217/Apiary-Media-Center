@@ -1809,3 +1809,6 @@ window.clearAfyaContext = clearAfyaContext;
 
 document.addEventListener('DOMContentLoaded', init);
 
+
+
+document.addEventListener('DOMContentLoaded', init);
