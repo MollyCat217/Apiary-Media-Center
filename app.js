@@ -1207,6 +1207,10 @@ window.addDiscoverTopic = addDiscoverTopic;
 window.sendToCompose = sendToCompose;
 window.sendToWriter = sendToWriter;
 window.copyDiscoverUrl = copyDiscoverUrl;
+window.saveOpenAiKey = saveOpenAiKey;
+window.generateImage = generateImage;
+window.applyImagePreset = applyImagePreset;
+window.copyImageUrl = copyImageUrl;
 
 function addSource() {
   const container = document.getElementById('sourcesContainer');
