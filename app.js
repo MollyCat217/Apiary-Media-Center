@@ -1490,6 +1490,7 @@ For each takeaway, the "source" field must reference which source number (e.g. "
 
     // Render article first so user sees it immediately
     renderArticle(article, meta, resultsEl);
+    showImageGenSection(article);
 
     // Then run the hallucination check as a second pass
     const checkLoadingEl = document.createElement('div');
