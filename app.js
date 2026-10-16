@@ -464,20 +464,20 @@ Use \\n for line breaks inside the post text.`;
 }
 
 async function renderHistory() {
-  const list = document.getElementById('historyList');
-  const empty = document.getElementById('historyEmpty');
   const loading = document.getElementById('historyLoading');
   if (loading) loading.style.display = 'block';
-  if (list) list.innerHTML = '';
-  let batches = null;
+
   const scriptUrl = Storage.get('scriptUrl', '');
-  if (scriptUrl) batches = await loadFromGoogleSheet();
-  if (!batches) batches = Storage.get('postHistory_' + activePersona, []);
-  if (loading) loading.style.display = 'none';
-  if (!batches || !batches.length) {
-    if (empty) empty.style.display = 'flex';
-    return;
+  if (scriptUrl) {
+    const sheetBatches = await loadFromGoogleSheet();
+    if (sheetBatches) {
+      Storage.set('postHistory', sheetBatches.slice(0, 50));
+    }
   }
+
+  if (loading) loading.style.display = 'none';
+  filterHistory();
+}
   if (empty) empty.style.display = 'none';
   list.innerHTML = batches.map(function(batch) {
     const date = new Date(batch.timestamp).toLocaleDateString('en-US', {
