@@ -845,6 +845,12 @@ function clearArticleFields() {
   document.getElementById('articleResults').innerHTML = '';
   document.getElementById('articleEmpty').style.display = 'flex';
   document.getElementById('articleClearBtn').style.display = 'none';
+  
+const imageCheckbox = document.getElementById('includeImage');
+if (imageCheckbox) imageCheckbox.checked = false;
+const imageSection = document.getElementById('imageGenSection');
+if (imageSection) imageSection.style.display = 'none';
+  
 }
 
 // ─── DISCOVER / PERPLEXITY ────────────────────────────────────────────────────
