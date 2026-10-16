@@ -736,6 +736,20 @@ Afya is a revenue capture platform for FQHCs that automatically documents care c
 
         <div class="settings-card">
           <div class="settings-card-title">Anthropic API key</div>
+          <div class="settings-card">
+  <div class="settings-card-title">OpenAI API key</div>
+  <div class="field-block" style="margin-top:1rem;">
+    <div style="display:flex;gap:8px;align-items:flex-end;">
+      <div class="field-block" style="flex:1;margin:0;">
+        <label class="field-label">API key</label>
+        <input type="password" id="openAiKeyInput" class="field-input" placeholder="sk-proj-..." />
+      </div>
+      <button class="save-btn" onclick="saveOpenAiKey()">Save</button>
+    </div>
+    <div class="field-hint">Used for image generation via DALL-E 3. Stored only in your browser's localStorage.</div>
+    <div id="openAiKeyStatus"></div>
+  </div>
+</div>
           <div class="field-block" style="margin-top:1rem;">
             <div style="display:flex;gap:8px;align-items:flex-end;">
               <div class="field-block" style="flex:1;margin:0;">
