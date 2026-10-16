@@ -1183,6 +1183,15 @@ function copyImageUrl(url) {
 }
 // ─── ARTICLE WRITER ───────────────────────────────────────────────────────────
 
+function toggleImageSection() {
+  const checkbox = document.getElementById('includeImage');
+  const section = document.getElementById('imageGenSection');
+  if (!section) return;
+  section.style.display = checkbox.checked ? 'block' : 'none';
+}
+
+
+
 window.generatePosts = generatePosts;
 window.copyPost = copyPost;
 window.copySummary = copySummary;
