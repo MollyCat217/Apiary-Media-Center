@@ -1292,7 +1292,199 @@ async function generateImageCompose() {
   btn.disabled = false;
   btn.innerHTML = 'Generate image <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>';
 }
+function saveArticleToHistory(article) {
+  const history = Storage.get('articleHistory', []);
+  history.unshift(article);
+  Storage.set('articleHistory', history.slice(0, 50));
+}
 
+function saveImageToHistory(image) {
+  const history = Storage.get('imageHistory', []);
+  history.unshift(image);
+  Storage.set('imageHistory', history.slice(0, 50));
+}
+
+function toggleHistorySection(section) {
+  const body = document.getElementById(section + 'Body');
+  const chevron = document.getElementById(section + 'Chevron');
+  if (!body) return;
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  if (chevron) chevron.style.transform = isOpen ? 'rotate(-90deg)' : 'rotate(0deg)';
+}
+
+function clearHistoryFilters() {
+  const search = document.getElementById('historySearch');
+  const type = document.getElementById('historyTypeFilter');
+  const from = document.getElementById('historyDateFrom');
+  const to = document.getElementById('historyDateTo');
+  if (search) search.value = '';
+  if (type) type.value = 'all';
+  if (from) from.value = '';
+  if (to) to.value = '';
+  filterHistory();
+}
+
+function filterHistory() {
+  const query = (document.getElementById('historySearch')?.value || '').toLowerCase();
+  const type = document.getElementById('historyTypeFilter')?.value || 'all';
+  const from = document.getElementById('historyDateFrom')?.value;
+  const to = document.getElementById('historyDateTo')?.value;
+
+  const inRange = (timestamp) => {
+    if (!from && !to) return true;
+    const d = new Date(timestamp);
+    if (from && d < new Date(from)) return false;
+    if (to && d > new Date(to + 'T23:59:59')) return false;
+    return true;
+  };
+
+  const postSection = document.getElementById('historyPostsSection');
+  const articleSection = document.getElementById('historyArticlesSection');
+  const imageSection = document.getElementById('historyImagesSection');
+
+  if (postSection) postSection.style.display = (type === 'all' || type === 'posts') ? 'block' : 'none';
+  if (articleSection) articleSection.style.display = (type === 'all' || type === 'articles') ? 'block' : 'none';
+  if (imageSection) imageSection.style.display = (type === 'all' || type === 'images') ? 'block' : 'none';
+
+  const posts = Storage.get('postHistory', []).filter(b =>
+    inRange(b.timestamp) &&
+    (!query || (b.source || '').toLowerCase().includes(query) ||
+    (b.content || '').toLowerCase().includes(query) ||
+    (b.hook || '').toLowerCase().includes(query))
+  );
+
+  const articles = Storage.get('articleHistory', []).filter(a =>
+    inRange(a.timestamp) &&
+    (!query || (a.title || '').toLowerCase().includes(query) ||
+    (a.body || '').toLowerCase().includes(query) ||
+    (a.sources || []).some(s => (s.org || '').toLowerCase().includes(query)))
+  );
+
+  const images = Storage.get('imageHistory', []).filter(i =>
+    inRange(i.timestamp) &&
+    (!query || (i.prompt || '').toLowerCase().includes(query))
+  );
+
+  renderPostHistory(posts);
+  renderArticleHistory(articles);
+  renderImageHistory(images);
+
+  const postsCount = document.getElementById('postsCount');
+  const articlesCount = document.getElementById('articlesCount');
+  const imagesCount = document.getElementById('imagesCount');
+  if (postsCount) postsCount.textContent = posts.length;
+  if (articlesCount) articlesCount.textContent = articles.length;
+  if (imagesCount) imagesCount.textContent = images.length;
+}
+
+function renderPostHistory(batches) {
+  const list = document.getElementById('historyList');
+  const empty = document.getElementById('historyEmpty');
+  if (!list) return;
+  if (!batches || !batches.length) {
+    list.innerHTML = '';
+    if (empty) empty.style.display = 'flex';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  list.innerHTML = batches.map(function(batch) {
+    const date = new Date(batch.timestamp).toLocaleDateString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
+    const platforms = batch.platforms || [];
+    const platformBadges = platforms
+      .map(p => '<span class="hist-badge">' + (PLATFORM_META[p] ? PLATFORM_META[p].label : p) + '</span>')
+      .join('');
+    const hookBadge = batch.hook
+      ? '<span class="hist-badge" style="background:var(--green-50);color:var(--green-800);">Hook: ' + escapeHtml(batch.hook) + '</span>'
+      : '';
+    const summaryHtml = batch.summary
+      ? '<div class="hist-summary"><div class="hist-summary-label">TL;DR</div><div class="hist-summary-tldr">' + escapeHtml(batch.summary.tldr || '') + '</div></div>'
+      : '';
+    const postsHtml = (batch.posts || []).map(function(item) {
+      const meta = PLATFORM_META[item.platform] || { label: item.platform, badgeClass: '' };
+      return '<div class="post-card" style="margin-bottom:10px;">' +
+        '<div class="post-header"><span class="platform-badge ' + meta.badgeClass + '">' + meta.label + '</span>' +
+        '<button class="action-btn" onclick="copyPost(this, ' + JSON.stringify(item.post) + ')">Copy</button></div>' +
+        '<div class="post-body">' + escapeHtml(item.post) + '</div></div>';
+    }).join('');
+    const snippet = batch.contentSnippet || (batch.content ? batch.content.slice(0, 120) : '');
+    return '<div class="history-card">' +
+      '<div class="history-meta"><div class="history-title">' + escapeHtml(batch.source || 'Untitled') + (snippet ? ' — ' + escapeHtml(snippet) + '...' : '') + '</div>' +
+      '<div class="history-date">' + date + '</div></div>' +
+      (batch.url ? '<div class="history-url"><a href="' + escapeHtml(batch.url) + '" target="_blank">' + escapeHtml(batch.url) + '</a></div>' : '') +
+      '<div class="history-platforms">' + platformBadges + hookBadge + '</div>' +
+      summaryHtml +
+      '<button class="history-expand-btn" onclick="this.nextElementSibling.classList.toggle(\'open\'); this.textContent = this.nextElementSibling.classList.contains(\'open\') ? \'Hide posts\' : \'View posts\'">View posts</button>' +
+      '<div class="history-posts">' + postsHtml + '</div></div>';
+  }).join('');
+}
+
+function renderArticleHistory(articles) {
+  const list = document.getElementById('articleHistoryList');
+  const empty = document.getElementById('articleHistoryEmpty');
+  if (!list) return;
+  if (!articles || !articles.length) {
+    list.innerHTML = '';
+    if (empty) empty.style.display = 'flex';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  list.innerHTML = articles.map(function(article) {
+    const date = new Date(article.timestamp).toLocaleDateString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
+    const sources = (article.sources || [])
+      .filter(s => s.org || s.url)
+      .map(s => '<span class="hist-badge">' + escapeHtml(s.org || s.url) + '</span>')
+      .join('');
+    const takeawaysHtml = (article.takeaways || [])
+      .map(t => '<li>' + escapeHtml(typeof t === 'object' ? t.claim || '' : t) + '</li>')
+      .join('');
+    return '<div class="history-card">' +
+      '<div class="history-meta">' +
+      '<div class="history-title">' + escapeHtml(article.title || 'Untitled article') + '</div>' +
+      '<div class="history-date">' + date + '</div>' +
+      '</div>' +
+      '<div class="history-platforms"><span class="hist-badge" style="background:var(--green-50);color:var(--green-800);">' + escapeHtml(article.type || 'Article') + '</span>' + sources + '</div>' +
+      '<button class="history-expand-btn" onclick="this.nextElementSibling.classList.toggle(\'open\'); this.textContent = this.nextElementSibling.classList.contains(\'open\') ? \'Hide article\' : \'View article\'">View article</button>' +
+      '<div class="history-posts">' +
+      (takeawaysHtml ? '<div style="margin-bottom:10px;"><div class="hist-summary-label">Key takeaways</div><ul class="article-takeaways" style="margin-top:6px;">' + takeawaysHtml + '</ul></div>' : '') +
+      '<div class="article-body" style="max-height:300px;">' + escapeHtml(article.body || '').split('\n\n').map(p => p.startsWith('## ') ? '<h3 class="article-subheading">' + escapeHtml(p.slice(3)) + '</h3>' : '<p class="article-para">' + escapeHtml(p) + '</p>').join('') + '</div>' +
+      '<button class="action-btn" style="margin-top:10px;" onclick="copyArticleSection(this, ' + JSON.stringify((article.title || '') + '\n\n' + (article.body || '')) + ')">Copy full article</button>' +
+      '</div></div>';
+  }).join('');
+}
+
+function renderImageHistory(images) {
+  const list = document.getElementById('imageHistoryList');
+  const empty = document.getElementById('imageHistoryEmpty');
+  if (!list) return;
+  if (!images || !images.length) {
+    list.innerHTML = '';
+    if (empty) empty.style.display = 'flex';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  list.innerHTML = images.map(function(image) {
+    const date = new Date(image.timestamp).toLocaleDateString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
+    });
+    const isExpired = (Date.now() - new Date(image.timestamp).getTime()) > 3600000;
+    return '<div class="history-card">' +
+      '<div class="history-meta">' +
+      '<div class="history-title">' + escapeHtml(image.prompt ? image.prompt.slice(0, 100) + '...' : 'Generated image') + '</div>' +
+      '<div class="history-date">' + date + '</div>' +
+      '</div>' +
+      '<div class="history-platforms"><span class="hist-badge">' + escapeHtml(image.ratio || '') + '</span><span class="hist-badge">' + escapeHtml(image.style ? image.style.split(',')[0] : '') + '</span></div>' +
+      (isExpired
+        ? '<div class="error-msg" style="font-size:12px;margin-top:8px;">Image URL expired (DALL-E URLs expire after 1 hour). Download images immediately after generation to keep them.</div>'
+        : '<div style="margin-top:10px;"><img src="' + image.url + '" style="width:100%;border-radius:var(--radius-md);border:1px solid var(--sand-200);" /><div style="margin-top:8px;"><a href="' + image.url + '" download="afya-image.png" class="save-btn" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:6px 12px;">Download</a></div></div>'
+      ) +
+      '</div>';
+  }).join('');
+}
 window.generatePosts = generatePosts;
 window.copyPost = copyPost;
 window.copySummary = copySummary;
