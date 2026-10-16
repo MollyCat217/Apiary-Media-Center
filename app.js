@@ -1603,6 +1603,16 @@ For each takeaway, the "source" field must reference which source number (e.g. "
     // Render article first so user sees it immediately
     renderArticle(article, meta, resultsEl);
     showImageGenSection(article);
+    saveArticleToHistory({
+  timestamp: new Date().toISOString(),
+  type: meta.label,
+  title: article.title,
+  takeaways: article.takeaways,
+  body: article.body,
+  cta: article.cta,
+  sources: sources.map(s => ({ org: s.org, url: s.url })),
+  angle: angle || ''
+});
 
     // Then run the hallucination check as a second pass
     const checkLoadingEl = document.createElement('div');
