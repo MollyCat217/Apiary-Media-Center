@@ -1316,6 +1316,9 @@ window.generateImage = generateImage;
 window.applyImagePreset = applyImagePreset;
 window.copyImageUrl = copyImageUrl;
 window.toggleImageSection = toggleImageSection;
+window.toggleImageSectionCompose = toggleImageSectionCompose;
+window.applyImagePresetCompose = applyImagePresetCompose;
+window.generateImageCompose = generateImageCompose;
 
 function addSource() {
   const container = document.getElementById('sourcesContainer');
