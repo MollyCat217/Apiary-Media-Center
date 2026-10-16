@@ -1220,6 +1220,7 @@ window.saveOpenAiKey = saveOpenAiKey;
 window.generateImage = generateImage;
 window.applyImagePreset = applyImagePreset;
 window.copyImageUrl = copyImageUrl;
+window.toggleImageSection = toggleImageSection;
 
 function addSource() {
   const container = document.getElementById('sourcesContainer');
