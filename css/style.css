@@ -1543,3 +1543,74 @@ body {
   color: var(--ink-300);
 }
 
+/* ── IMAGE GENERATION ────────────────────────── */
+
+.image-gen-card {
+  background: var(--white);
+  border: 1px solid var(--sand-200);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  margin-top: 1rem;
+}
+
+.image-gen-header {
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--sand-200);
+  margin-bottom: 1rem;
+}
+
+.style-presets {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.style-preset-label {
+  font-size: 11px;
+  color: var(--ink-300);
+  font-weight: 500;
+}
+
+.style-preset-btn {
+  font-size: 11px;
+  padding: 4px 10px;
+  border: 1px solid var(--sand-300);
+  border-radius: 20px;
+  background: var(--white);
+  color: var(--ink-500);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: all 0.15s;
+}
+
+.style-preset-btn:hover {
+  background: var(--green-50);
+  border-color: var(--green-600);
+  color: var(--green-800);
+}
+
+.image-result {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.generated-image {
+  width: 100%;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--sand-200);
+}
+
+.image-result-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.image-revised-prompt {
+  font-size: 11px;
+  color: var(--ink-300);
+  line-height: 1.5;
+  font-style: italic;
+}
