@@ -756,6 +756,15 @@ function loadSettings() {
       ? '<span class="status-ok">API key is set.</span>'
       : '<span class="status-err">No API key set.</span>';
   }
+  const openAiKey = Storage.get('openAiKey', '');
+const openAiInput = document.getElementById('openAiKeyInput');
+if (openAiInput && openAiKey) openAiInput.value = openAiKey;
+const openAiEl = document.getElementById('openAiKeyStatus');
+if (openAiEl) {
+  openAiEl.innerHTML = openAiKey
+    ? '<span class="status-ok">OpenAI key is set.</span>'
+    : '<span class="status-err">No OpenAI key set.</span>';
+}
   const perplexityEl = document.getElementById('perplexityKeyStatus');
   if (perplexityEl) {
     perplexityEl.innerHTML = perplexityKey
