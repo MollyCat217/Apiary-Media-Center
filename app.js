@@ -1071,6 +1071,107 @@ function sendToWriter(idx) {
   }
 }
 
+function saveOpenAiKey() {
+  const key = document.getElementById('openAiKeyInput').value.trim();
+  if (!key.startsWith('sk-')) {
+    document.getElementById('openAiKeyStatus').innerHTML = '<span class="status-err">Invalid key — should start with sk-</span>';
+    return;
+  }
+  Storage.set('openAiKey', key);
+  document.getElementById('openAiKeyStatus').innerHTML = '<span class="status-ok">OpenAI key saved.</span>';
+}
+
+function applyImagePreset(preset) {
+  const prompt = document.getElementById('imagePrompt');
+  if (prompt) prompt.value = preset;
+}
+
+function buildImagePrompt(article) {
+  const title = article.title || '';
+  const tldr = (article.takeaways && article.takeaways[0])
+    ? (typeof article.takeaways[0] === 'object' ? article.takeaways[0].claim : article.takeaways[0])
+    : '';
+  return `Professional healthcare photograph for an article titled "${title}". ${tldr ? 'The article covers: ' + tldr + '.' : ''} Show diverse community members and healthcare workers. Warm, welcoming, and authentic. No text or signs in the image. Photorealistic, high quality.`;
+}
+
+async function generateImage() {
+  const apiKey = Storage.get('openAiKey', '');
+  if (!apiKey) {
+    document.getElementById('imageError').textContent = 'Please add your OpenAI API key in Settings first.';
+    return;
+  }
+
+  const prompt = document.getElementById('imagePrompt').value.trim();
+  if (!prompt) {
+    document.getElementById('imageError').textContent = 'Please enter an image prompt.';
+    return;
+  }
+
+  const style = document.getElementById('imageStyle').value;
+  const ratio = document.getElementById('imageRatio').value;
+  const [width, height] = ratio.split('x');
+  const fullPrompt = prompt + '. Style: ' + style + '. No text overlays. No watermarks.';
+
+  const btn = document.getElementById('imageGenBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span>Generating image...</span>';
+  document.getElementById('imageError').textContent = '';
+  document.getElementById('imageResult').innerHTML = '<div class="loading-msg">Generating your image — this takes 10-15 seconds...</div>';
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/images/generations', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + apiKey
+      },
+      body: JSON.stringify({
+        model: 'dall-e-3',
+        prompt: fullPrompt,
+        n: 1,
+        size: ratio,
+        quality: 'standard',
+        response_format: 'url'
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error?.message || 'OpenAI API error ' + response.status);
+    }
+
+    const data = await response.json();
+    const imageUrl = data.data[0].url;
+    const revisedPrompt = data.data[0].revised_prompt;
+
+    document.getElementById('imageResult').innerHTML = `
+      <div class="image-result">
+        <img src="${imageUrl}" alt="Generated image" class="generated-image" />
+        <div class="image-result-actions">
+          <a href="${imageUrl}" download="afya-article-image.png" class="save-btn" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;">
+            Download image
+            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+          </a>
+          <button class="action-btn" onclick="copyImageUrl('${imageUrl}')">Copy image URL</button>
+        </div>
+        ${revisedPrompt ? '<div class="image-revised-prompt">DALL-E revised prompt: ' + escapeHtml(revisedPrompt) + '</div>' : ''}
+      </div>
+    `;
+
+  } catch (err) {
+    document.getElementById('imageResult').innerHTML = '';
+    document.getElementById('imageError').textContent = 'Error: ' + err.message;
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = 'Generate image <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>';
+}
+
+function copyImageUrl(url) {
+  navigator.clipboard.writeText(url).then(() => {
+    alert('Image URL copied! Note: DALL-E image URLs expire after 1 hour — download the image to keep it permanently.');
+  });
+}
 // ─── ARTICLE WRITER ───────────────────────────────────────────────────────────
 
 window.generatePosts = generatePosts;
