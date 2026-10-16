@@ -1631,6 +1631,15 @@ function renderArticle(article, meta, container) {
   `;
 }
 
+function showImageGenSection(article) {
+  const section = document.getElementById('imageGenSection');
+  if (!section) return;
+  section.style.display = 'block';
+  const prompt = document.getElementById('imagePrompt');
+  if (prompt) prompt.value = buildImagePrompt(article);
+  document.getElementById('imageResult').innerHTML = '';
+  document.getElementById('imageError').textContent = '';
+}
 function copyArticleSection(btn, text) {
   navigator.clipboard.writeText(text).then(() => {
     const orig = btn.innerHTML;
