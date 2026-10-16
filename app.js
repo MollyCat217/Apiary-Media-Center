@@ -1772,6 +1772,13 @@ function showImageGenSection(article) {
   const prompt = document.getElementById('imagePrompt');
   if (prompt) prompt.value = buildImagePrompt(article);
   document.getElementById('imageResult').innerHTML = '';
+  saveImageToHistory({
+  timestamp: new Date().toISOString(),
+  prompt: prompt,
+  url: imageUrl,
+  style: style,
+  ratio: ratio
+});
   document.getElementById('imageError').textContent = '';
 }
   const prompt = document.getElementById('imagePrompt');
