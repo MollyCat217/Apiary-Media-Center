@@ -353,6 +353,59 @@
   </label>
 </div>
           <input type="hidden" id="orgName" value="Afya" />
+          <div class="field-block" style="margin-bottom:0.5rem;">
+  <label class="afya-toggle-label">
+    <input type="checkbox" id="includeImageCompose" onchange="toggleImageSectionCompose()" />
+    <span class="afya-toggle-text">
+      Generate an image for these posts
+    </span>
+  </label>
+</div>
+<div id="imageGenSectionCompose" style="display:none;">
+  <div class="image-gen-card">
+    <div class="image-gen-header">
+      <span class="article-section-label">Generate image</span>
+    </div>
+    <div class="field-block" style="margin-top:0.75rem;">
+      <label class="field-label">Image prompt <span style="font-size:10px;color:var(--ink-300);font-weight:400;">auto-generated — edit freely</span></label>
+      <textarea id="imagePromptCompose" class="content-area" style="min-height:80px;"></textarea>
+    </div>
+    <div class="field-row" style="margin-bottom:1rem;">
+      <div class="field-block">
+        <label class="field-label">Style</label>
+        <select id="imageStyleCompose" class="field-input">
+          <option value="photorealistic, professional photography, warm natural lighting">Photorealistic</option>
+          <option value="clean editorial photography, bright and airy, modern healthcare setting">Clean editorial</option>
+          <option value="warm community photography, candid feel, diverse people, approachable">Warm community</option>
+          <option value="flat design illustration, professional, healthcare icons, minimal">Illustration</option>
+        </select>
+      </div>
+      <div class="field-block">
+        <label class="field-label">Aspect ratio</label>
+        <select id="imageRatioCompose" class="field-input">
+          <option value="1024x1024">Square (social media)</option>
+          <option value="1792x1024">Landscape (blog header)</option>
+          <option value="1024x1792">Portrait (story/reel)</option>
+        </select>
+      </div>
+    </div>
+    <div class="style-presets">
+      <span class="style-preset-label">Quick presets:</span>
+      <button class="style-preset-btn" onclick="applyImagePresetCompose('community health center, diverse patients and staff, welcoming waiting room')">Health center</button>
+      <button class="style-preset-btn" onclick="applyImagePresetCompose('community health workers meeting with patients in neighborhood, grassroots healthcare')">Community</button>
+      <button class="style-preset-btn" onclick="applyImagePresetCompose('healthcare policy and funding concept, government and community partnership')">Policy</button>
+      <button class="style-preset-btn" onclick="applyImagePresetCompose('rural healthcare clinic, small town medical care, underserved community')">Rural health</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:1rem;">
+      <button class="generate-btn" id="imageGenBtnCompose" onclick="generateImageCompose()" style="flex:1;">
+        Generate image
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+      </button>
+    </div>
+    <div id="imageErrorCompose" style="font-size:12px;color:#c0392b;margin-top:6px;min-height:16px;"></div>
+    <div id="imageResultCompose" style="margin-top:1rem;"></div>
+  </div>
+</div>
 
           <button class="generate-btn" id="genBtn" onclick="generatePosts()">
             Generate posts
