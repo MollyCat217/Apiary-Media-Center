@@ -1132,7 +1132,13 @@ async function generateImage() {
   btn.innerHTML = '<span>Generating image...</span>';
   document.getElementById('imageError').textContent = '';
   document.getElementById('imageResult').innerHTML = '<div class="loading-msg">Generating your image — this takes 10-15 seconds...</div>';
-
+saveImageToHistory({
+  timestamp: new Date().toISOString(),
+  prompt: prompt,
+  url: imageUrl,
+  style: style,
+  ratio: ratio
+});
   try {
     const response = await fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
