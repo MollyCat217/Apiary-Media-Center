@@ -1639,7 +1639,17 @@ function renderArticle(article, meta, container) {
 function showImageGenSection(article) {
   const section = document.getElementById('imageGenSection');
   if (!section) return;
-  section.style.display = 'block';
+  const checkbox = document.getElementById('includeImage');
+  if (checkbox && checkbox.checked) {
+    section.style.display = 'block';
+  } else {
+    section.style.display = 'none';
+  }
+  const prompt = document.getElementById('imagePrompt');
+  if (prompt) prompt.value = buildImagePrompt(article);
+  document.getElementById('imageResult').innerHTML = '';
+  document.getElementById('imageError').textContent = '';
+}
   const prompt = document.getElementById('imagePrompt');
   if (prompt) prompt.value = buildImagePrompt(article);
   document.getElementById('imageResult').innerHTML = '';
