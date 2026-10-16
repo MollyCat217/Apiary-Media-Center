@@ -1517,6 +1517,9 @@ window.toggleImageSection = toggleImageSection;
 window.toggleImageSectionCompose = toggleImageSectionCompose;
 window.applyImagePresetCompose = applyImagePresetCompose;
 window.generateImageCompose = generateImageCompose;
+window.filterHistory = filterHistory;
+window.clearHistoryFilters = clearHistoryFilters;
+window.toggleHistorySection = toggleHistorySection;
 
 function addSource() {
   const container = document.getElementById('sourcesContainer');
