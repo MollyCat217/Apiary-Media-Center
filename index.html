@@ -664,7 +664,15 @@
             <span>Add sources and click Generate</span>
           </div>
       <div id="articleResults"></div>
-<div id="imageGenSection" style="display:none;">
+<div class="field-block" style="margin-top:1rem;">
+  <label class="afya-toggle-label">
+    <input type="checkbox" id="includeImage" onchange="toggleImageSection()" />
+    <span class="afya-toggle-text">
+      Generate an image for this article
+    </span>
+  </label>
+</div>
+          <div id="imageGenSection" style="display:none;">
   <div class="image-gen-card">
     <div class="image-gen-header">
       <span class="article-section-label">Generate image</span>
