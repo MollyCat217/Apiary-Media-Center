@@ -803,33 +803,82 @@ Afya is a revenue capture platform for FQHCs that automatically documents care c
     </div>
   </div>
 </div>
-    <!-- ══════════════════════════════════════════
-         HISTORY VIEW
-    ══════════════════════════════════════════ -->
-    <div class="view hidden" id="view-history">
-      <div class="view-header">
-        <h1>Post history</h1>
-        <p class="view-sub">Every generated batch — loaded from your Google Sheet</p>
-      </div>
+   
+     ══════════════════════════════════════════
+<!-- HISTORY VIEW -->
+<div class="view hidden" id="view-history">
+  <div class="view-header">
+    <h1>History</h1>
+    <p class="view-sub">All generated posts, articles, and images</p>
+  </div>
 
-      <!-- Audience filter bar (NEW) -->
-      <div class="history-filters" id="historyFilters">
-        <button class="filter-chip active" data-audience-filter="all">All audiences</button>
-        <button class="filter-chip" data-audience-filter="fqhc">🏥 FQHC</button>
-        <button class="filter-chip" data-audience-filter="veterans">🎖️ Veterans</button>
-        <button class="filter-chip" data-audience-filter="navigators">🧭 Navigators</button>
-      </div>
+  <div class="history-search-bar">
+    <input type="text" id="historySearch" class="field-input" placeholder="Search by keyword, source, title..." oninput="filterHistory()" style="flex:1;" />
+    <select id="historyTypeFilter" class="field-input" onchange="filterHistory()" style="width:160px;">
+      <option value="all">All types</option>
+      <option value="posts">Posts only</option>
+      <option value="articles">Articles only</option>
+      <option value="images">Images only</option>
+    </select>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <input type="date" id="historyDateFrom" class="field-input" onchange="filterHistory()" style="width:140px;" />
+      <span style="font-size:12px;color:var(--ink-300);">to</span>
+      <input type="date" id="historyDateTo" class="field-input" onchange="filterHistory()" style="width:140px;" />
+    </div>
+    <button class="delete-btn" onclick="clearHistoryFilters()" style="white-space:nowrap;padding:8px 14px;">Clear filters</button>
+  </div>
 
-      <div class="loading-msg" id="historyLoading" style="display:none;">Loading from Google Sheet...</div>
-      <div id="historyList"></div>
-      <div class="empty-state" id="historyEmpty" style="margin-top:3rem;display:none;">
-        <svg width="36" height="36" fill="none" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-        <p>No history yet</p>
-        <span>Generated batches will appear here automatically</span>
+  <div class="loading-msg" id="historyLoading" style="display:none;">Loading from Google Sheet...</div>
+
+  <div id="historyContent">
+    <div class="history-section" id="historyPostsSection">
+      <div class="history-section-header" onclick="toggleHistorySection('posts')">
+        <span class="history-section-title">Posts</span>
+        <span class="history-section-count" id="postsCount"></span>
+        <svg class="history-section-chevron" id="postsChevron" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
+      </div>
+      <div class="history-section-body" id="postsBody">
+        <div id="historyList"></div>
+        <div class="empty-state" id="historyEmpty" style="display:none;">
+          <p>No posts yet</p>
+          <span>Generated post batches will appear here</span>
+        </div>
       </div>
     </div>
 
-    <!-- ══════════════════════════════════════════
+    <div class="history-section" id="historyArticlesSection">
+      <div class="history-section-header" onclick="toggleHistorySection('articles')">
+        <span class="history-section-title">Articles</span>
+        <span class="history-section-count" id="articlesCount"></span>
+        <svg class="history-section-chevron" id="articlesChevron" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
+      </div>
+      <div class="history-section-body" id="articlesBody">
+        <div id="articleHistoryList"></div>
+        <div class="empty-state" id="articleHistoryEmpty" style="display:none;">
+          <p>No articles yet</p>
+          <span>Generated articles will appear here</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="history-section" id="historyImagesSection">
+      <div class="history-section-header" onclick="toggleHistorySection('images')">
+        <span class="history-section-title">Images</span>
+        <span class="history-section-count" id="imagesCount"></span>
+        <svg class="history-section-chevron" id="imagesChevron" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
+      </div>
+      <div class="history-section-body" id="imagesBody">
+        <div id="imageHistoryList"></div>
+        <div class="empty-state" id="imageHistoryEmpty" style="display:none;">
+          <p>No images yet</p>
+          <span>Generated images will appear here</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+   ══════════════════════════════════════════
          SETTINGS VIEW
     ══════════════════════════════════════════ -->
     <div class="view hidden" id="view-settings">
