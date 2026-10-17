@@ -1902,7 +1902,7 @@ async function generateImage() {
         'Authorization': 'Bearer ' + apiKey
       },
       body: JSON.stringify({
-        model: 'dall-e-3',
+        model: 'gpt-image-1',
         prompt: fullPrompt,
         n: 1,
         size: ratio,
@@ -1972,7 +1972,7 @@ async function generateImageCompose() {
         'Authorization': 'Bearer ' + apiKey
       },
       body: JSON.stringify({
-        model: 'dall-e-3',
+        model: 'gpt-image-1',
         prompt: fullPrompt,
         n: 1,
         size: ratio,
