@@ -2017,7 +2017,7 @@ async function generateImageCompose() {
 
 function copyImageUrl(url) {
   navigator.clipboard.writeText(url).then(() => {
-    alert('Image URL copied! Note: DALL-E image URLs expire after 1 hour — download the image to keep it permanently.');
+    alert('Image URL copied to clipboard.');
   });
 }
 
