@@ -364,10 +364,28 @@
     <div class="image-gen-header">
       <span class="article-section-label">Generate image</span>
     </div>
-    <div class="field-block" style="margin-top:0.75rem;">
-      <label class="field-label">Image prompt <span style="font-size:10px;color:var(--ink-300);font-weight:400;">auto-generated — edit freely</span></label>
-      <textarea id="imagePromptCompose" class="content-area" style="min-height:80px;"></textarea>
-    </div>
+<div class="image-mode-tabs">
+  <button class="image-mode-tab-compose active" onclick="switchImageModeCompose('auto', this)">Auto from content</button>
+  <button class="image-mode-tab-compose" onclick="switchImageModeCompose('prompt', this)">Custom prompt</button>
+  <button class="image-mode-tab-compose" onclick="switchImageModeCompose('upload', this)">Upload and modify</button>
+</div>
+
+<div id="imageModeAutoCompose">
+  <div class="field-hint" style="margin-bottom:8px;">The app will read your alert content and generate a relevant image automatically. You can edit the prompt before generating.</div>
+  <label class="field-label">Auto-generated prompt <span style="font-size:10px;color:var(--ink-300);">edit freely</span></label>
+  <textarea id="imagePromptCompose" class="content-area" style="min-height:80px;"></textarea>
+</div>
+
+<div id="imageModePromptCompose" style="display:none;">
+  <label class="field-label">Your image prompt</label>
+  <textarea id="imagePromptCustomCompose" class="content-area" style="min-height:80px;" placeholder="Describe the image you want — be specific about people, setting, mood, and style..."></textarea>
+</div>
+
+<div id="imageModeUploadCompose" style="display:none;">
+  <label class="field-label">Upload an image to modify</label>
+  <input type="file" id="imageUploadFileCompose" class="field-input" accept="image/png,image/jpeg,image/webp" style="padding:6px;" />
+  <label class="field-label" style="margin-top:8px;">Modification instructions</label>
+  <textarea id="imageUploadPromptCompose" class="content-area" style="min-height:60px;" placeholder="Describe how to modify the image — e.g. 'Add a diverse group of healthcare workers in the background'"></textarea>
     <div class="field-row" style="margin-bottom:1rem;">
       <div class="field-block">
         <label class="field-label">Style</label>
