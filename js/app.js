@@ -1907,7 +1907,7 @@ async function generateImage() {
         n: 1,
         size: ratio,
         quality: 'standard',
-        response_format: 'url'
+        output_format: 'png'
       })
     });
     if (!response.ok) {
@@ -1977,7 +1977,7 @@ async function generateImageCompose() {
         n: 1,
         size: ratio,
         quality: 'standard',
-        response_format: 'url'
+        output_format: 'png'
       })
     });
     if (!response.ok) {
