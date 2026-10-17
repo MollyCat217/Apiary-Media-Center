@@ -1673,4 +1673,37 @@ body {
 
 .history-section-body {
   padding: 1rem;
+
+
+  /* ── IMAGE MODE TABS ─────────────────────────── */
+
+.image-mode-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 1rem;
+}
+
+.image-mode-tab {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-family: var(--font-sans);
+  border: 1px solid var(--sand-300);
+  border-radius: 20px;
+  background: var(--white);
+  color: var(--ink-500);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.image-mode-tab.active {
+  background: var(--green-800);
+  border-color: var(--green-800);
+  color: var(--white);
+  font-weight: 500;
+}
+
+.image-mode-tab:hover:not(.active) {
+  background: var(--green-50);
+  border-color: var(--green-600);
+}
 }
