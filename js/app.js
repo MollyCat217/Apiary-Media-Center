@@ -1921,7 +1921,7 @@ async function generateImage() {
       <div class="image-result">
         <img src="${imageUrl}" alt="Generated image" class="generated-image" />
         <div class="image-result-actions">
-          <a href="${imageUrl}" download="afya-article-image.png" class="save-btn" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;">
+         <a href="${imageUrl}" download="afya-article-image.png" class="save-btn" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;">
             Download image
             <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
           </a>
@@ -1991,7 +1991,7 @@ async function generateImageCompose() {
       <div class="image-result">
         <img src="${imageUrl}" alt="Generated image" class="generated-image" />
         <div class="image-result-actions">
-          <a href="${imageUrl}" download="afya-social-image.png" class="save-btn" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;">
+          <a href="${imageUrl}" download="afya-article-image.png" class="save-btn" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;">
             Download image
             <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
           </a>
