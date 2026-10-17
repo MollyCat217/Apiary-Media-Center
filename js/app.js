@@ -1915,7 +1915,7 @@ async function generateImage() {
       throw new Error(err.error?.message || 'OpenAI API error ' + response.status);
     }
     const data = await response.json();
-    const imageUrl = data.data[0].url;
+    const imageUrl = 'data:image/png;base64,' + data.data[0].b64_json;
     const revisedPrompt = data.data[0].revised_prompt;
     document.getElementById('imageResult').innerHTML = `
       <div class="image-result">
@@ -1985,7 +1985,7 @@ async function generateImageCompose() {
       throw new Error(err.error?.message || 'OpenAI API error ' + response.status);
     }
     const data = await response.json();
-    const imageUrl = data.data[0].url;
+    const imageUrl = 'data:image/png;base64,' + data.data[0].b64_json;
     const revisedPrompt = data.data[0].revised_prompt;
     document.getElementById('imageResultCompose').innerHTML = `
       <div class="image-result">
