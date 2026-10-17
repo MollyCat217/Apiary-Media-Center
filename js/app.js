@@ -1822,6 +1822,8 @@ window.filterHistory = filterHistory;
 window.filterHooksList = filterHooksList;
 window.saveAfyaContext = saveAfyaContext;
 window.clearAfyaContext = clearAfyaContext;
+window.switchImageMode = switchImageMode;
+window.switchImageModeCompose = switchImageModeCompose;
 
 document.addEventListener('DOMContentLoaded', init);
 function saveOpenAiKey() {
