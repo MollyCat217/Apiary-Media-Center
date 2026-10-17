@@ -722,10 +722,29 @@
     <div class="image-gen-header">
       <span class="article-section-label">Generate image</span>
     </div>
-    <div class="field-block" style="margin-top:0.75rem;">
-      <label class="field-label">Image prompt <span style="font-size:10px;color:var(--ink-300);font-weight:400;">auto-generated from article — edit freely</span></label>
-      <textarea id="imagePrompt" class="content-area" style="min-height:80px;"></textarea>
-    </div>
+ <div class="image-mode-tabs">
+  <button class="image-mode-tab active" onclick="switchImageMode('auto', this)">Auto from article</button>
+  <button class="image-mode-tab" onclick="switchImageMode('prompt', this)">Custom prompt</button>
+  <button class="image-mode-tab" onclick="switchImageMode('upload', this)">Upload and modify</button>
+</div>
+
+<div id="imageModeAuto">
+  <div class="field-hint" style="margin-bottom:8px;">The app will read your article and generate a relevant image automatically. You can edit the prompt before generating.</div>
+  <label class="field-label">Auto-generated prompt <span style="font-size:10px;color:var(--ink-300);">edit freely</span></label>
+  <textarea id="imagePrompt" class="content-area" style="min-height:80px;"></textarea>
+</div>
+
+<div id="imageModePrompt" style="display:none;">
+  <label class="field-label">Your image prompt</label>
+  <textarea id="imagePromptCustom" class="content-area" style="min-height:80px;" placeholder="Describe the image you want — be specific about people, setting, mood, and style..."></textarea>
+</div>
+
+<div id="imageModeUpload" style="display:none;">
+  <label class="field-label">Upload an image to modify</label>
+  <input type="file" id="imageUploadFile" class="field-input" accept="image/png,image/jpeg,image/webp" style="padding:6px;" />
+  <label class="field-label" style="margin-top:8px;">Modification instructions</label>
+  <textarea id="imageUploadPrompt" class="content-area" style="min-height:60px;" placeholder="Describe how to modify the image — e.g. 'Add a diverse group of healthcare workers in the background' or 'Change the setting to a community health clinic'"></textarea>
+</div>
     <div class="field-row" style="margin-bottom:1rem;">
       <div class="field-block">
         <label class="field-label">Style</label>
