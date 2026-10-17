@@ -1778,6 +1778,22 @@ function getAfyaContextBlock() {
   if (!ctx || !ctx.text) return '';
   return `\n\nAFYA PRODUCT CONTEXT — use this to add an opening paragraph connecting the news to the problem Afya solves, and a closing "How Afya Can Help" section. Do not fabricate any product claims beyond what is stated here. Weave naturally — not as a hard sell:\n${ctx.text}`;
 }
+function switchImageMode(mode, btn) {
+  document.querySelectorAll('.image-mode-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('imageModeAuto').style.display = mode === 'auto' ? 'block' : 'none';
+  document.getElementById('imageModePrompt').style.display = mode === 'prompt' ? 'block' : 'none';
+  document.getElementById('imageModeUpload').style.display = mode === 'upload' ? 'block' : 'none';
+}
+
+function switchImageModeCompose(mode, btn) {
+  document.querySelectorAll('.image-mode-tab-compose').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('imageModeAutoCompose').style.display = mode === 'auto' ? 'block' : 'none';
+  document.getElementById('imageModePromptCompose').style.display = mode === 'prompt' ? 'block' : 'none';
+  document.getElementById('imageModeUploadCompose').style.display = mode === 'upload' ? 'block' : 'none';
+}
+
 window.generatePosts = generatePosts;
 window.copyPost = copyPost;
 window.copySummary = copySummary;
