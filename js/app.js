@@ -1892,142 +1892,116 @@ function showImageGenSection(article) {
 }
 
 async function generateImage() {
+async function generateImage() {
   const apiKey = Storage.get('openAiKey', '');
   if (!apiKey) {
     document.getElementById('imageError').textContent = 'Please add your OpenAI API key in Settings first.';
     return;
   }
-  const prompt = document.getElementById('imagePrompt').value.trim();
+
+  const activeTab = document.querySelector('.image-mode-tab.active');
+  const mode = activeTab ? activeTab.textContent.toLowerCase() : 'auto';
+  const isUpload = mode.includes('upload');
+  const isCustom = mode.includes('custom');
+
+  let prompt = '';
+  if (isUpload) {
+    prompt = document.getElementById('imageUploadPrompt').value.trim();
+  } else if (isCustom) {
+    prompt = document.getElementById('imagePromptCustom').value.trim();
+  } else {
+    prompt = document.getElementById('imagePrompt').value.trim();
+  }
+
   if (!prompt) {
-    document.getElementById('imageError').textContent = 'Please enter an image prompt.';
+    document.getElementById('imageError').textContent = 'Please enter a prompt or modification instruction.';
     return;
   }
+
   const style = document.getElementById('imageStyle').value;
   const ratio = document.getElementById('imageRatio').value;
-  const fullPrompt = prompt + '. Style: ' + style + '. No text overlays. No watermarks.';
   const btn = document.getElementById('imageGenBtn');
   btn.disabled = true;
   btn.innerHTML = '<span>Generating image...</span>';
   document.getElementById('imageError').textContent = '';
-  document.getElementById('imageResult').innerHTML = '<div class="loading-msg">Generating your image — this takes 10-15 seconds...</div>';
+  document.getElementById('imageResult').innerHTML = '<div class="loading-msg">Generating your image — this takes 10-20 seconds...</div>';
+
   try {
-    const response = await fetch('https://api.openai.com/v1/images/generations', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + apiKey
-      },
-      body: JSON.stringify({
-        model: 'gpt-image-1',
-        prompt: fullPrompt,
-        n: 1,
-        size: ratio,
-        quality: 'standard',
-        output_format: 'png'
-      })
-    });
+    let response;
+
+    if (isUpload) {
+      const file = document.getElementById('imageUploadFile').files[0];
+      if (!file) throw new Error('Please upload an image file first.');
+      const formData = new FormData();
+      formData.append('image', file);
+      formData.append('prompt', prompt + '. Style: ' + style + '. No text overlays.');
+      formData.append('model', 'gpt-image-1');
+      formData.append('size', ratio);
+      formData.append('quality', 'medium');
+
+      response = await fetch('https://api.openai.com/v1/images/edits', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + apiKey },
+        body: formData
+      });
+    } else {
+      const fullPrompt = prompt + '. Style: ' + style + '. No text overlays. No watermarks.';
+      response = await fetch('https://api.openai.com/v1/images/generations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + apiKey
+        },
+        body: JSON.stringify({
+          model: 'gpt-image-1',
+          prompt: fullPrompt,
+          n: 1,
+          size: ratio,
+          quality: 'medium',
+          output_format: 'png'
+        })
+      });
+    }
+
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
       throw new Error(err.error?.message || 'OpenAI API error ' + response.status);
     }
+
     const data = await response.json();
-    const imageUrl = 'data:image/png;base64,' + data.data[0].b64_json;
-    const revisedPrompt = data.data[0].revised_prompt;
+    const b64 = data.data[0].b64_json;
+    const imageUrl = 'data:image/png;base64,' + b64;
+
     document.getElementById('imageResult').innerHTML = `
       <div class="image-result">
         <img src="${imageUrl}" alt="Generated image" class="generated-image" />
         <div class="image-result-actions">
-         <a href="${imageUrl}" download="afya-article-image.png" class="save-btn" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;">
+          <a href="${imageUrl}" download="afya-image.png" class="save-btn" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;">
             Download image
             <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
           </a>
-          <button class="action-btn" onclick="copyImageUrl('${imageUrl}')">Copy image URL</button>
         </div>
-        ${revisedPrompt ? '<div class="image-revised-prompt">DALL-E revised prompt: ' + escapeHtml(revisedPrompt) + '</div>' : ''}
       </div>
     `;
+
     saveImageToHistory({
       timestamp: new Date().toISOString(),
       prompt: prompt,
       url: imageUrl,
       style: style,
-      ratio: ratio
+      ratio: ratio,
+      mode: isUpload ? 'upload' : isCustom ? 'custom' : 'auto'
     });
+
   } catch (err) {
     document.getElementById('imageResult').innerHTML = '';
     document.getElementById('imageError').textContent = 'Error: ' + err.message;
   }
+
   btn.disabled = false;
   btn.innerHTML = 'Generate image <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>';
 }
-
-async function generateImageCompose() {
-  const apiKey = Storage.get('openAiKey', '');
-  if (!apiKey) {
-    document.getElementById('imageErrorCompose').textContent = 'Please add your OpenAI API key in Settings first.';
-    return;
-  }
-  const prompt = document.getElementById('imagePromptCompose').value.trim();
-  if (!prompt) {
-    document.getElementById('imageErrorCompose').textContent = 'Please enter an image prompt.';
-    return;
-  }
-  const style = document.getElementById('imageStyleCompose').value;
-  const ratio = document.getElementById('imageRatioCompose').value;
-  const fullPrompt = prompt + '. Style: ' + style + '. No text overlays. No watermarks.';
-  const btn = document.getElementById('imageGenBtnCompose');
-  btn.disabled = true;
-  btn.innerHTML = '<span>Generating image...</span>';
-  document.getElementById('imageErrorCompose').textContent = '';
-  document.getElementById('imageResultCompose').innerHTML = '<div class="loading-msg">Generating your image — this takes 10-15 seconds...</div>';
-  try {
-    const response = await fetch('https://api.openai.com/v1/images/generations', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + apiKey
-      },
-      body: JSON.stringify({
-        model: 'gpt-image-1',
-        prompt: fullPrompt,
-        n: 1,
-        size: ratio,
-        quality: 'standard',
-        output_format: 'png'
-      })
-    });
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.error?.message || 'OpenAI API error ' + response.status);
-    }
-    const data = await response.json();
-    const imageUrl = 'data:image/png;base64,' + data.data[0].b64_json;
-    const revisedPrompt = data.data[0].revised_prompt;
-    document.getElementById('imageResultCompose').innerHTML = `
-      <div class="image-result">
-        <img src="${imageUrl}" alt="Generated image" class="generated-image" />
-        <div class="image-result-actions">
-          <a href="${imageUrl}" download="afya-article-image.png" class="save-btn" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;">
-            Download image
-            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-          </a>
-          <button class="action-btn" onclick="copyImageUrl('${imageUrl}')">Copy image URL</button>
-        </div>
-        ${revisedPrompt ? '<div class="image-revised-prompt">DALL-E revised prompt: ' + escapeHtml(revisedPrompt) + '</div>' : ''}
-      </div>
-    `;
-    saveImageToHistory({
-      timestamp: new Date().toISOString(),
-      prompt: prompt,
-      url: imageUrl,
-      style: style,
-      ratio: ratio
-    });
-  } catch (err) {
-    document.getElementById('imageResultCompose').innerHTML = '';
-    document.getElementById('imageErrorCompose').textContent = 'Error: ' + err.message;
-  }
-  btn.disabled = false;
+  
   btn.innerHTML = 'Generate image <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>';
 }
 
