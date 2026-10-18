@@ -552,7 +552,7 @@ ${includeAfya ? getAfyaContextBlock() : ''}`;
     container.insertBefore(saveStatus, container.firstChild);
     setTimeout(() => saveStatus.remove(), 3000);
   }
-    // ... existing save to history code ...
+
 
   if (posts.length) {
     const imagePromptEl = document.getElementById('imagePromptCompose');
