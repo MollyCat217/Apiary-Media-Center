@@ -578,8 +578,6 @@ ${includeAfya ? getAfyaContextBlock() : ''}`;
   resetButtons();
 }
 
-  resetButtons();
-}
 
 // ─── HISTORY ─────────────────────────────────────────────────────────────────
 
