@@ -552,6 +552,31 @@ ${includeAfya ? getAfyaContextBlock() : ''}`;
     container.insertBefore(saveStatus, container.firstChild);
     setTimeout(() => saveStatus.remove(), 3000);
   }
+    // ... existing save to history code ...
+
+  if (posts.length) {
+    const imagePromptEl = document.getElementById('imagePromptCompose');
+    const content = document.getElementById('alertContent').value.trim();
+    const source = document.getElementById('sourceOrg').value.trim();
+    if (imagePromptEl) {
+      imagePromptEl.value = 'Professional healthcare photograph related to: ' + content.slice(0, 150) + (source ? ' Source: ' + source : '') + '. Diverse community members and healthcare workers. Warm and authentic. No text in image.';
+    }
+    const imageSection = document.getElementById('imageGenSectionCompose');
+    if (imageSection) {
+      const toggle = document.createElement('div');
+      toggle.className = 'field-block';
+      toggle.style.marginTop = '1rem';
+      toggle.innerHTML = '<label class="afya-toggle-label"><input type="checkbox" id="includeImageCompose" onchange="toggleImageSectionCompose()" /><span class="afya-toggle-text">Generate an image for these posts</span></label>';
+      const container = document.getElementById('postsContainer');
+      if (container && !document.getElementById('includeImageCompose')) {
+        container.appendChild(toggle);
+      }
+      imageSection.style.display = 'none';
+    }
+  }
+
+  resetButtons();
+}
 
   resetButtons();
 }
