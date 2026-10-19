@@ -1707,3 +1707,107 @@ body {
   border-color: var(--green-600);
 }
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   v3 ADDITIONS — full-text fetch, inline states, mobile navigation
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* URL + Fetch text button */
+.url-fetch-row { display: flex; gap: 6px; align-items: stretch; min-width: 0; }
+.url-fetch-row .field-input { flex: 1; min-width: 0; }
+.fetch-btn {
+  flex-shrink: 0;
+  padding: 0 12px;
+  border: 1px solid var(--teal-600, #0d9488);
+  border-radius: var(--radius-sm, 6px);
+  background: transparent;
+  color: var(--teal-600, #0d9488);
+  font: 500 12px var(--font-sans, inherit);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s;
+}
+.fetch-btn:hover { background: rgba(13,148,136,.08); }
+.fetch-btn:disabled { opacity: .5; cursor: wait; }
+
+/* Fetch status line under content fields */
+.fetch-status { font-size: 12px; line-height: 1.45; margin: 4px 0 6px; min-height: 0; }
+.fetch-status:empty { display: none; }
+.fetch-status.is-loading { color: var(--ink-500, #64748b); }
+.fetch-status.is-loading::before {
+  content: ''; display: inline-block; width: 10px; height: 10px; margin-right: 6px; vertical-align: -1px;
+  border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%;
+  animation: amc-spin .8s linear infinite;
+}
+.fetch-status.is-ok   { color: #0f766e; background: rgba(13,148,136,.07); padding: 6px 8px; border-radius: 6px; }
+.fetch-status.is-warn { color: #8a4b00; background: #fff6e5; padding: 6px 8px; border-radius: 6px; }
+textarea:disabled { opacity: .6; cursor: progress; }
+
+.inline-error { font-size: 12px; color: #b42318; margin-top: 6px; min-height: 16px; }
+
+.discover-card-nourl {
+  font-size: 12px; color: #8a4b00; background: #fff6e5;
+  padding: 6px 8px; border-radius: 6px; margin-top: 8px;
+}
+.check-excerpt-note {
+  font-size: 12px; color: #8a4b00; background: #fff6e5;
+  padding: 6px 8px; border-radius: 6px; margin-top: 8px;
+}
+
+.security-card { border-left: 3px solid var(--teal-600, #0d9488); }
+
+/* Loading spinner for all loading messages */
+.loading-msg::before {
+  content: ''; display: inline-block; width: 12px; height: 12px; margin-right: 8px; vertical-align: -2px;
+  border: 2px solid var(--teal-600, #0d9488); border-right-color: transparent; border-radius: 50%;
+  animation: amc-spin .8s linear infinite;
+}
+@keyframes amc-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .loading-msg::before, .fetch-status.is-loading::before { animation: none; }
+}
+
+/* Visible keyboard focus */
+.nav-item:focus-visible, .generate-btn:focus-visible, .action-btn:focus-visible,
+.fetch-btn:focus-visible, .save-btn:focus-visible, .filter-chip:focus-visible {
+  outline: 2px solid var(--teal-500, #14b8a6); outline-offset: 2px;
+}
+
+/* Long URLs and text never push the layout wider than the screen */
+.history-url, .discover-card-title, .post-body, .article-body { overflow-wrap: anywhere; }
+.generated-image { max-width: 100%; height: auto; }
+
+/* ── Tablet ── */
+@media (max-width: 900px) {
+  .hooks-grid { grid-template-columns: 1fr; }
+  html .audience-grid { grid-template-columns: 1fr 1fr; }
+}
+
+/* ── Phone: sidebar becomes a top bar with a scrollable tab row ── */
+@media (max-width: 640px) {
+  .app-shell { flex-direction: column; }
+  .sidebar {
+    display: flex;
+    position: sticky; top: 0;
+    width: 100%; min-height: 0;
+    padding: .6rem 0 .4rem;
+    z-index: 20;
+    box-shadow: 0 2px 8px rgba(0,0,0,.15);
+  }
+  .sidebar-top { padding: 0; }
+  .logo { margin: 0 .9rem .5rem; }
+  .logo-sub, .sidebar-sources { display: none; }
+  .sidebar-nav {
+    flex-direction: row; gap: 4px;
+    overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+    padding: 0 .6rem;
+  }
+  .sidebar-nav::-webkit-scrollbar { display: none; }
+  .nav-item { width: auto; flex-shrink: 0; white-space: nowrap; padding: 8px 12px; min-height: 40px; }
+  .main-content { margin-left: 0; padding: 1rem; max-width: 100%; }
+  html .audience-grid { grid-template-columns: 1fr; }
+  .settings-grid { grid-template-columns: 1fr; }
+  .url-fetch-row { flex-wrap: nowrap; }
+  .generate-btn, .stop-btn { min-height: 44px; }
+  .discover-link-row { flex-wrap: wrap; gap: 8px; }
+}
