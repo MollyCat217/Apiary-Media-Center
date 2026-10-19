@@ -4,6 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Apiary Media Center</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://api.anthropic.com https://api.openai.com https://api.perplexity.ai https://r.jina.ai https://corsproxy.io https://script.google.com https://script.googleusercontent.com; object-src 'none'; base-uri 'self'; form-action 'self'" />
+<meta name="referrer" content="no-referrer" />
 <link rel="stylesheet" href="css/style.css" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -219,6 +221,7 @@
               <button class="src-tab is-disabled" title="Coming soon">RSS (soon)</button>
             </div>
             <textarea id="alertContent" class="content-area" placeholder="Paste the content from your Google Alert email — the headline, article snippet, or full publication text..."></textarea>
+            <div class="fetch-status" id="alertFetchStatus" aria-live="polite"></div>
           </div>
 
           <!-- Source org + URL -->
@@ -229,7 +232,10 @@
             </div>
             <div class="field-block">
               <label class="field-label">Article URL</label>
-              <input type="text" id="articleUrl" class="field-input" placeholder="https://..." />
+              <div class="url-fetch-row">
+                <input type="text" id="articleUrl" class="field-input" placeholder="https://..." />
+                <button type="button" class="fetch-btn" onclick="fetchComposeFromUrl()" title="Pull the full article text from this URL into Alert content">Fetch text</button>
+              </div>
             </div>
           </div>
 
@@ -360,40 +366,42 @@
   </label>
 </div>
           <button class="generate-btn" id="genBtn" onclick="generatePosts()">
-  Generate posts
-  <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
-</button>
-<button class="stop-btn" id="stopBtn" onclick="stopGeneration()" style="display:none;">
-  Stop generation
-  <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
-</button>
+            Generate posts
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+          </button>
+          <button class="stop-btn" id="stopBtn" onclick="stopGeneration()" style="display:none;">
+            Stop generation
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+          </button>
 <div id="imageGenSectionCompose" style="display:none;">
   <div class="image-gen-card">
     <div class="image-gen-header">
       <span class="article-section-label">Generate image</span>
     </div>
-<div class="image-mode-tabs">
-  <button class="image-mode-tab-compose active" onclick="switchImageModeCompose('auto', this)">Auto from content</button>
-  <button class="image-mode-tab-compose" onclick="switchImageModeCompose('prompt', this)">Custom prompt</button>
-  <button class="image-mode-tab-compose" onclick="switchImageModeCompose('upload', this)">Upload and modify</button>
-</div>
+    <div class="image-mode-tabs">
+      <button class="image-mode-tab-compose active" data-mode="auto" onclick="switchImageModeCompose('auto', this)">Auto from content</button>
+      <button class="image-mode-tab-compose" data-mode="prompt" onclick="switchImageModeCompose('prompt', this)">Custom prompt</button>
+      <button class="image-mode-tab-compose" data-mode="upload" onclick="switchImageModeCompose('upload', this)">Upload and modify</button>
+    </div>
 
-<div id="imageModeAutoCompose">
-  <div class="field-hint" style="margin-bottom:8px;">The app will read your alert content and generate a relevant image automatically. You can edit the prompt before generating.</div>
-  <label class="field-label">Auto-generated prompt <span style="font-size:10px;color:var(--ink-300);">edit freely</span></label>
-  <textarea id="imagePromptCompose" class="content-area" style="min-height:80px;"></textarea>
-</div>
+    <div id="imageModeAutoCompose">
+      <div class="field-hint" style="margin-bottom:8px;">The app will read your alert content and generate a relevant image automatically. You can edit the prompt before generating.</div>
+      <label class="field-label">Auto-generated prompt <span style="font-size:10px;color:var(--ink-300);">edit freely</span></label>
+      <textarea id="imagePromptCompose" class="content-area" style="min-height:80px;"></textarea>
+    </div>
 
-<div id="imageModePromptCompose" style="display:none;">
-  <label class="field-label">Your image prompt</label>
-  <textarea id="imagePromptCustomCompose" class="content-area" style="min-height:80px;" placeholder="Describe the image you want — be specific about people, setting, mood, and style..."></textarea>
-</div>
+    <div id="imageModePromptCompose" style="display:none;">
+      <label class="field-label">Your image prompt</label>
+      <textarea id="imagePromptCustomCompose" class="content-area" style="min-height:80px;" placeholder="Describe the image you want — be specific about people, setting, mood, and style..."></textarea>
+    </div>
 
-<div id="imageModeUploadCompose" style="display:none;">
-  <label class="field-label">Upload an image to modify</label>
-  <input type="file" id="imageUploadFileCompose" class="field-input" accept="image/png,image/jpeg,image/webp" style="padding:6px;" />
-  <label class="field-label" style="margin-top:8px;">Modification instructions</label>
-  <textarea id="imageUploadPromptCompose" class="content-area" style="min-height:60px;" placeholder="Describe how to modify the image — e.g. 'Add a diverse group of healthcare workers in the background'"></textarea>
+    <div id="imageModeUploadCompose" style="display:none;">
+      <label class="field-label">Upload an image to modify</label>
+      <input type="file" id="imageUploadFileCompose" class="field-input" accept="image/png,image/jpeg,image/webp" style="padding:6px;" />
+      <label class="field-label" style="margin-top:8px;">Modification instructions</label>
+      <textarea id="imageUploadPromptCompose" class="content-area" style="min-height:60px;" placeholder="Describe how to modify the image — e.g. 'Add a diverse group of healthcare workers in the background'"></textarea>
+    </div>
+
     <div class="field-row" style="margin-bottom:1rem;">
       <div class="field-block">
         <label class="field-label">Style</label>
@@ -404,7 +412,14 @@
           <option value="flat design illustration, professional, healthcare icons, minimal">Illustration</option>
         </select>
       </div>
- 
+      <div class="field-block">
+        <label class="field-label">Aspect ratio</label>
+        <select id="imageRatioCompose" class="field-input">
+          <option value="1024x1024">Square (social media)</option>
+          <option value="1536x1024">Landscape</option>
+          <option value="1024x1536">Portrait (story/reel)</option>
+        </select>
+      </div>
     </div>
     <div class="style-presets">
       <span class="style-preset-label">Quick presets:</span>
@@ -419,20 +434,10 @@
         <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
       </button>
     </div>
-    <div id="imageErrorCompose" style="font-size:12px;color:#c0392b;margin-top:6px;min-height:16px;"></div>
+    <div id="imageErrorCompose" class="inline-error" role="alert"></div>
     <div id="imageResultCompose" style="margin-top:1rem;"></div>
   </div>
 </div>
-
-          <button class="generate-btn" id="genBtn" onclick="generatePosts()">
-            Generate posts
-            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
-          </button>
-
-          <button class="stop-btn" id="stopBtn" onclick="stopGeneration()" style="display:none;">
-            Stop generation
-            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
-          </button>
 
         </div>
 
@@ -445,7 +450,6 @@
           <div id="postsContainer"></div>
         </div>
       </div>
-    </div>
     </div>
 
     <!-- DISCOVER VIEW -->
@@ -656,10 +660,14 @@
                 <div class="source-block-header">
                   <span class="source-block-label">Source 1</span>
                 </div>
-                <textarea class="content-area source-content" placeholder="Paste article content, headline, or snippet..." style="min-height:90px;margin-bottom:6px;"></textarea>
+                <textarea class="content-area source-content" placeholder="Paste article content, headline, or snippet — or enter a URL below and click Fetch text" style="min-height:90px;margin-bottom:6px;"></textarea>
+                <div class="fetch-status source-fetch-status" aria-live="polite"></div>
                 <div class="field-row" style="margin-bottom:0;">
                   <input type="text" class="field-input source-org" placeholder="Organization (e.g. NACHC, HRSA)" />
-                  <input type="text" class="field-input source-url" placeholder="URL (optional)" />
+                  <div class="url-fetch-row">
+                    <input type="text" class="field-input source-url" placeholder="URL (optional)" />
+                    <button type="button" class="fetch-btn" onclick="fetchSourceFromUrl(this)" title="Pull the full article text from this URL">Fetch text</button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -743,9 +751,9 @@
       <span class="article-section-label">Generate image</span>
     </div>
  <div class="image-mode-tabs">
-  <button class="image-mode-tab active" onclick="switchImageMode('auto', this)">Auto from article</button>
-  <button class="image-mode-tab" onclick="switchImageMode('prompt', this)">Custom prompt</button>
-  <button class="image-mode-tab" onclick="switchImageMode('upload', this)">Upload and modify</button>
+  <button class="image-mode-tab active" data-mode="auto" onclick="switchImageMode('auto', this)">Auto from article</button>
+  <button class="image-mode-tab" data-mode="prompt" onclick="switchImageMode('prompt', this)">Custom prompt</button>
+  <button class="image-mode-tab" data-mode="upload" onclick="switchImageMode('upload', this)">Upload and modify</button>
 </div>
 
 <div id="imageModeAuto">
@@ -778,9 +786,9 @@
       <div class="field-block">
         <label class="field-label">Aspect ratio</label>
         <select id="imageRatio" class="field-input">
-          <option value="1792x1024">Landscape (blog header)</option>
+          <option value="1536x1024">Landscape (blog header)</option>
           <option value="1024x1024">Square (social media)</option>
-          <option value="1024x1792">Portrait (story/reel)</option>
+          <option value="1024x1536">Portrait (story/reel)</option>
         </select>
       </div>
     </div>
@@ -797,7 +805,7 @@
         <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
       </button>
     </div>
-    <div id="imageError" style="font-size:12px;color:#c0392b;margin-top:6px;min-height:16px;"></div>
+    <div id="imageError" class="inline-error" role="alert"></div>
     <div id="imageResult" style="margin-top:1rem;"></div>
   </div>
 </div>
@@ -918,22 +926,22 @@ Afya is a revenue capture platform for FQHCs that automatically documents care c
 
       <div class="settings-grid">
 
+        <div class="settings-card security-card">
+          <div class="settings-card-title">Key safety</div>
+          <div class="field-hint" style="margin-top:.5rem;line-height:1.55;">
+            Your API keys are never part of the website's code. They are saved only in this browser on this device, and are sent directly to Anthropic, OpenAI or Perplexity when you generate content.
+            Anyone who uses this browser profile could reach them, so avoid saving keys on shared or public computers, and set spending limits in each provider's dashboard.
+            Treat your Google Apps Script URL like a password too: anyone who has it can read and write your Sheet.
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:.75rem;">
+            <button class="delete-btn" onclick="clearAllKeys()">Remove all keys from this browser</button>
+          </div>
+          <div id="clearKeysStatus"></div>
+        </div>
+
+
         <div class="settings-card">
           <div class="settings-card-title">Anthropic API key</div>
-          <div class="settings-card">
-  <div class="settings-card-title">OpenAI API key</div>
-  <div class="field-block" style="margin-top:1rem;">
-    <div style="display:flex;gap:8px;align-items:flex-end;">
-      <div class="field-block" style="flex:1;margin:0;">
-        <label class="field-label">API key</label>
-        <input type="password" id="openAiKeyInput" class="field-input" placeholder="sk-proj-..." />
-      </div>
-      <button class="save-btn" onclick="saveOpenAiKey()">Save</button>
-    </div>
-    <div class="field-hint">Used for image generation via DALL-E 3. Stored only in your browser's localStorage.</div>
-    <div id="openAiKeyStatus"></div>
-  </div>
-</div>
           <div class="field-block" style="margin-top:1rem;">
             <div style="display:flex;gap:8px;align-items:flex-end;">
               <div class="field-block" style="flex:1;margin:0;">
@@ -946,6 +954,21 @@ Afya is a revenue capture platform for FQHCs that automatically documents care c
             <div id="apiKeyStatus"></div>
           </div>
         </div>
+
+        <div class="settings-card">
+  <div class="settings-card-title">OpenAI API key</div>
+  <div class="field-block" style="margin-top:1rem;">
+    <div style="display:flex;gap:8px;align-items:flex-end;">
+      <div class="field-block" style="flex:1;margin:0;">
+        <label class="field-label">API key</label>
+        <input type="password" id="openAiKeyInput" class="field-input" placeholder="sk-proj-..." />
+      </div>
+      <button class="save-btn" onclick="saveOpenAiKey()">Save</button>
+    </div>
+    <div class="field-hint">Used for image generation (gpt-image-1). Stored only in your browser's localStorage.</div>
+    <div id="openAiKeyStatus"></div>
+  </div>
+</div>
 
         <div class="settings-card">
           <div class="settings-card-title">Perplexity API key</div>
@@ -1108,209 +1131,9 @@ Afya is a revenue capture platform for FQHCs that automatically documents care c
 
 </div>
 
-<script src="js/app.js?v=2"></script>
-
-<!-- AUDIENCE LOGIC PATCH
-     Augments app.js with audience-awareness
-     without requiring edits to the original file. -->
-
-  
-<script>
-// ── Helpers ──────────────────────────────────────────────────────────────
-
-/** Returns array of checked audience values for a given checkbox group name */
-function getSelectedAudiences(groupName = 'audience') {
-  return [...document.querySelectorAll(`input[name="${groupName}"]:checked`)]
-    .map(el => el.value);
-}
-
-/** Audience metadata: display label, badge class, Claude persona prompt */
-const AUDIENCE_META = {
-  fqhc: {
-    label: 'FQHC Community',
-    badge: 'fqhc',
-    emoji: '🏥',
-    persona: `You are writing for health center staff, clinical leaders, and community health advocates at Federally Qualified Health Centers (FQHCs).
-Use professional healthcare language. Reference funding sources like HRSA Section 330, 340B, UDS metrics, sliding-fee scale access, and the FQHC mission of serving underserved communities.
-Avoid jargon that is unfamiliar outside the FQHC ecosystem.`
-  },
-  veterans: {
-    label: 'Veterans & Military Families',
-    badge: 'veterans',
-    emoji: '🎖️',
-    persona: `You are writing for veterans, active-duty service members, and military families.
-Use plain, direct language that honors their service. Reference relevant touchpoints: VA healthcare, TRICARE, the Mission Act, community care networks, service-connected disability, and the gap between VA coverage and community health center access.
-Avoid clinical jargon. Lead with respect for their sacrifice. Use inclusive phrases like "those who served" or "our veteran community." Avoid anything that sounds bureaucratic or condescending.`
-  },
-  navigators: {
-    label: 'Family Health Navigators',
-    badge: 'navigators',
-    emoji: '🧭',
-    persona: `You are writing for certified health navigators, community health workers, and patient advocates who help families access healthcare.
-Use empowering, educational language. Reference the CMS Navigator Program, Marketplace enrollment, Medicaid/CHIP eligibility, community health workers (CHWs), and the challenges of helping multi-generational or immigrant families navigate coverage options.
-Keep language accessible — navigators share your content with clients. Emphasize practical next steps, resources, and the power of community-based support.`
-  }
-};
-
-// ── Tone label mapping (for display) ────────────────────────────────────
-const TONE_LABELS = {
-  informative: 'Informative',
-  thought_leadership: 'Thought Leadership',
-  urgent: 'Urgent / Advocacy',
-  community: 'Community / Conversational',
-  veteran_respectful: 'Respectful / Mission-Oriented',
-  veteran_peer: 'Peer-to-Peer',
-  navigator_empowering: 'Empowering / Educational',
-  navigator_caregiver: 'Caregiver / Family Support'
-};
-
-// ── Audience-aware prompt builder ────────────────────────────────────────
-/**
- * Wraps (or replaces) the base prompt building in app.js.
- * Called before the API request in generatePosts().
- * Exported to window so app.js can optionally call it.
- */
-window.buildAudiencePrompt = function(baseAlertContent, platform, tone, audiences, orgName, sourceOrg, articleUrl) {
-  const audienceBlocks = audiences.map(a => {
-    const meta = AUDIENCE_META[a];
-    return `--- Audience: ${meta.label} ---\n${meta.persona}`;
-  }).join('\n\n');
-
-  const audienceNames = audiences.map(a => AUDIENCE_META[a].label).join(', ');
-
-  return `You are a social media content specialist for ${orgName || 'a community health organization'}.
-
-AUDIENCES TO WRITE FOR: ${audienceNames}
-
-${audienceBlocks}
-
-ALERT CONTENT:
-${baseAlertContent}
-
-SOURCE ORGANIZATION: ${sourceOrg || 'N/A'}
-ARTICLE URL: ${articleUrl || 'N/A'}
-PLATFORM: ${platform}
-TONE: ${TONE_LABELS[tone] || tone}
-
-INSTRUCTIONS:
-Write one ${platform} post PER AUDIENCE listed above. Clearly separate each post with a header like "### [Audience Name]".
-Each post should be distinctly tailored to that audience's language, concerns, and context.
-Do not mix audiences in a single post.
-${articleUrl ? `Include the article URL at the end of each post.` : ''}
-`;
-};
-
-// ── History filter wiring ────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-
-  // History audience filter chips
-  document.querySelectorAll('[data-audience-filter]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('[data-audience-filter]').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      filterHistory(btn.dataset.audienceFilter);
-    });
-  });
-
-  // Hook filter chips
-  document.querySelectorAll('[data-hook-filter]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('[data-hook-filter]').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      filterHooksList(btn.dataset.hookFilter);
-    });
-  });
-
-  // Load default audience preferences from localStorage
-  loadDefaultAudiencePrefs();
-
-  // ── Wrap app.js functions AFTER they've been defined ────────────────────
-  // generatePosts wrap
-  const _origGenerate = window.generatePosts;
-  window.generatePosts = function() {
-    window.selectedAudiences = getSelectedAudiences('audience');
-    if (window.selectedAudiences.length === 0) {
-      alert('Please select at least one target audience.');
-      return;
-    }
-    if (typeof _origGenerate === 'function') _origGenerate();
-  };
-
-  // saveToHistory wrap
-  const _origSaveToHistory = window.saveToHistory;
-  window.saveToHistory = function(batch) {
-    const audiences = getSelectedAudiences('audience');
-    if (batch && typeof batch === 'object') {
-      batch.audiences = audiences;
-    }
-    if (typeof _origSaveToHistory === 'function') _origSaveToHistory(batch);
-  };
-
-  // saveDefaults wrap
-  const _origSaveDefaults = window.saveDefaults;
-  window.saveDefaults = function() {
-    const audiencePrefs = {
-      fqhc: document.getElementById('defaultAudienceFqhc')?.checked ?? true,
-      veterans: document.getElementById('defaultAudienceVeterans')?.checked ?? false,
-      navigators: document.getElementById('defaultAudienceNavigators')?.checked ?? false
-    };
-    localStorage.setItem('apiary_audience_defaults', JSON.stringify(audiencePrefs));
-    applyDefaultAudiences(audiencePrefs);
-    if (typeof _origSaveDefaults === 'function') _origSaveDefaults();
-    else {
-      const el = document.getElementById('prefsStatus');
-      if (el) { el.textContent = 'Preferences saved.'; setTimeout(() => el.textContent = '', 2500); }
-    }
-  };
-
-});
-
-function filterHistory(audience) {
-  const items = document.querySelectorAll('.history-item, [data-audience]');
-  items.forEach(item => {
-    if (audience === 'all') {
-      item.style.display = '';
-    } else {
-      const itemAudiences = (item.dataset.audiences || '').split(',');
-      item.style.display = itemAudiences.includes(audience) ? '' : 'none';
-    }
-  });
-}
-
-function filterHooksList(audience) {
-  const items = document.querySelectorAll('.hook-item, [data-hook-audience]');
-  items.forEach(item => {
-    if (audience === 'all') {
-      item.style.display = '';
-    } else {
-      item.style.display = (item.dataset.hookAudience === audience || item.dataset.hookAudience === '') ? '' : 'none';
-    }
-  });
-}
-
-// ── Default audience preferences ────────────────────────────────────────
-function loadDefaultAudiencePrefs() {
-  try {
-    const prefs = JSON.parse(localStorage.getItem('apiary_audience_defaults') || '{}');
-    if (prefs.fqhc !== undefined) document.getElementById('defaultAudienceFqhc').checked = prefs.fqhc;
-    if (prefs.veterans !== undefined) document.getElementById('defaultAudienceVeterans').checked = prefs.veterans;
-    if (prefs.navigators !== undefined) document.getElementById('defaultAudienceNavigators').checked = prefs.navigators;
-    applyDefaultAudiences(prefs);
-  } catch(e) {}
-}
-
-function applyDefaultAudiences(prefs) {
-  if (!prefs || Object.keys(prefs).length === 0) return;
-  ['fqhc', 'veterans', 'navigators'].forEach(a => {
-    document.querySelectorAll(`input[name="audience"][value="${a}"]`).forEach(el => {
-      el.checked = prefs[a] || false;
-    });
-  });
-}
+<script src="js/app.js?v=3"></script>
 
 
-
-</script>
 
 </body>
 </html>
