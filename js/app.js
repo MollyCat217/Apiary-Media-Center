@@ -142,6 +142,159 @@ function proxyUrl(url) {
   return 'https://corsproxy.io/?' + encodeURIComponent(url);
 }
 
+// Only allow http(s) links in generated markup (blocks javascript: and data: URLs)
+function safeUrl(url) {
+  try {
+    const u = new URL(String(url || '').trim());
+    return (u.protocol === 'http:' || u.protocol === 'https:') ? u.href : '';
+  } catch { return ''; }
+}
+
+// ─── FULL ARTICLE TEXT RETRIEVAL ─────────────────────────────────────────────
+// Pulls the readable text of an article so content and the grounding check are
+// based on the real source, not just a search summary.
+
+const MAX_SOURCE_CHARS = 15000;
+const MIN_ARTICLE_CHARS = 400;
+
+async function fetchWithTimeout(url, options = {}, ms = 20000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try { return await fetch(url, { ...options, signal: ctrl.signal }); }
+  finally { clearTimeout(timer); }
+}
+
+function extractReadableText(html) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  doc.querySelectorAll('script,style,noscript,nav,header,footer,aside,form,iframe,svg,button,[role="navigation"],[aria-hidden="true"]').forEach(el => el.remove());
+  const root = doc.querySelector('article') || doc.querySelector('main') || doc.body;
+  if (!root) return '';
+  const blocks = Array.from(root.querySelectorAll('h1,h2,h3,h4,p,li,blockquote'))
+    .map(el => el.textContent.replace(/\s+/g, ' ').trim())
+    .filter(t => t.length > 30);
+  return Array.from(new Set(blocks)).join('\n\n');
+}
+
+function cleanReaderText(text) {
+  // r.jina.ai returns "Title: ... URL Source: ... Markdown Content:" — keep the body
+  const marker = text.indexOf('Markdown Content:');
+  let body = marker >= 0 ? text.slice(marker + 'Markdown Content:'.length) : text;
+  return body
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')          // images
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')        // links -> text
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function looksBlocked(text) {
+  return /(access denied|enable javascript|verify you are human|captcha|subscribe to continue|403 forbidden|404 not found)/i.test(text.slice(0, 600));
+}
+
+async function fetchArticleText(url) {
+  const target = safeUrl(url);
+  if (!target) throw new Error('That URL does not look valid.');
+
+  // 1) Reader service (CORS-enabled, returns clean text)
+  try {
+    const r = await fetchWithTimeout('https://r.jina.ai/' + target, {}, 25000);
+    if (r.ok) {
+      const t = cleanReaderText(await r.text());
+      if (t.length >= MIN_ARTICLE_CHARS && !looksBlocked(t)) return { text: t, method: 'reader' };
+    }
+  } catch (e) { console.warn('Reader fetch failed:', e.message); }
+
+  // 2) CORS proxy + in-browser text extraction
+  try {
+    const r = await fetchWithTimeout(proxyUrl(target), {}, 20000);
+    if (r.ok) {
+      const t = extractReadableText(await r.text());
+      if (t.length >= MIN_ARTICLE_CHARS && !looksBlocked(t)) return { text: t, method: 'proxy' };
+    }
+  } catch (e) { console.warn('Proxy fetch failed:', e.message); }
+
+  return null;
+}
+
+function setFetchStatus(el, type, msg) {
+  if (!el) return;
+  el.className = el.className.replace(/\bis-(loading|ok|warn)\b/g, '').trim() + (type ? ' is-' + type : '');
+  el.textContent = msg || '';
+}
+
+// Fills a textarea with the full article text. Falls back to `fallbackText` if retrieval fails.
+async function fillWithArticleText(url, textarea, statusEl, title, fallbackText) {
+  if (!textarea) return false;
+  setFetchStatus(statusEl, 'loading', 'Fetching the full article text…');
+  textarea.disabled = true;
+  let result = null;
+  try { result = await fetchArticleText(url); } catch (e) { result = null; }
+  textarea.disabled = false;
+
+  if (result) {
+    let text = result.text;
+    let truncated = false;
+    if (text.length > MAX_SOURCE_CHARS) { text = text.slice(0, MAX_SOURCE_CHARS); truncated = true; }
+    textarea.value = (title ? title + '\n\n' : '') + text;
+    textarea.dataset.sourceType = 'full';
+    const words = text.split(/\s+/).length.toLocaleString();
+    setFetchStatus(statusEl, 'ok', 'Full article text loaded (about ' + words + ' words' + (truncated ? ', trimmed to fit' : '') + '). Review it and delete any leftover menus or ads before generating.');
+    return true;
+  }
+  if (fallbackText != null) textarea.value = fallbackText;
+  textarea.dataset.sourceType = 'summary';
+  setFetchStatus(statusEl, 'warn', 'Could not retrieve the full article (the site may block automated access or require a subscription). ' +
+    (fallbackText ? 'Using the search summary only — ' : '') + 'For accurate content, open the article and paste its text here.');
+  return false;
+}
+
+async function fetchComposeFromUrl() {
+  const url = document.getElementById('articleUrl').value.trim();
+  const statusEl = document.getElementById('alertFetchStatus');
+  if (!safeUrl(url)) { setFetchStatus(statusEl, 'warn', 'Enter a full article URL starting with https:// first.'); return; }
+  await fillWithArticleText(url, document.getElementById('alertContent'), statusEl, '', null);
+}
+
+async function fetchSourceFromUrl(btn) {
+  const block = btn.closest('.source-block');
+  if (!block) return;
+  const url = block.querySelector('.source-url').value.trim();
+  const statusEl = block.querySelector('.source-fetch-status');
+  if (!safeUrl(url)) { setFetchStatus(statusEl, 'warn', 'Enter a full article URL starting with https:// first.'); return; }
+  btn.disabled = true;
+  await fillWithArticleText(url, block.querySelector('.source-content'), statusEl, '', null);
+  btn.disabled = false;
+}
+
+// Copy buttons: any element with data-copy="text" copies that text on click.
+document.addEventListener('click', e => {
+  const btn = e.target.closest('[data-copy]');
+  if (!btn) return;
+  const text = btn.dataset.copy || '';
+  const orig = btn.innerHTML;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('copied'); }, 2000);
+  }).catch(() => {
+    btn.textContent = 'Copy failed';
+    setTimeout(() => { btn.innerHTML = orig; }, 2000);
+  });
+});
+
+// Shared view switching (sidebar, mobile nav, and Discover hand-offs)
+function showView(view) {
+  const target = document.getElementById('view-' + view);
+  if (!target) return;
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+  document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+  target.classList.remove('hidden');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (view === 'history') renderHistory();
+  if (view === 'settings') loadSettings();
+  if (view === 'hooks') renderHooks();
+  if (view === 'afya') loadAfyaContext();
+}
+
 function hooksStorageKey() {
   return 'messagingHooks_' + activePersona;
 }
@@ -233,7 +386,7 @@ function copyPost(btn, text) {
 function showError(msg) {
   const container = document.getElementById('postsContainer');
   document.getElementById('emptyState').style.display = 'none';
-  container.innerHTML = '<div class="error-msg">' + msg + '</div>';
+  container.innerHTML = '<div class="error-msg">' + escapeHtml(msg) + '</div>';
 }
 
 function renderSummary(summary, container) {
@@ -389,8 +542,8 @@ async function generatePosts() {
   const orgName = 'Afya';
   const includeAfya = document.getElementById('includeAfyaCompose')?.checked && Storage.get('afyaContext', null);
   const hooks = Storage.get(hooksStorageKey(), []);
-  const selectedHookId = parseInt(document.getElementById('hookSelect')?.value);
-  const activeHook = hooks.find(h => h.id === selectedHookId) || null;
+  const selectedHookId = document.getElementById('hookSelect')?.value || '';
+  const activeHook = selectedHookId ? (hooks.find(h => String(h.id) === selectedHookId) || null) : null;
   const persona = getPersona();
 
   abortController = new AbortController();
@@ -583,7 +736,6 @@ ${includeAfya ? getAfyaContextBlock() : ''}`;
 
 async function renderHistory() {
   const list = document.getElementById('historyList');
-  const empty = document.getElementById('historyEmpty');
   const loading = document.getElementById('historyLoading');
   if (loading) loading.style.display = 'block';
   if (list) list.innerHTML = '';
@@ -592,15 +744,98 @@ async function renderHistory() {
   if (scriptUrl) batches = await loadFromGoogleSheet();
   if (!batches) batches = Storage.get('postHistory_' + activePersona, []);
   if (loading) loading.style.display = 'none';
-  if (!batches || !batches.length) {
-    if (empty) empty.style.display = 'flex';
-    return;
-  }
-  if (empty) empty.style.display = 'none';
 
-  // Store full batches on the list element for filter use
-  list._allBatches = batches;
-  _renderHistoryBatches(list, batches);
+  if (list) list._allBatches = batches || [];
+  filterHistory();
+}
+
+function _historyDate(ts) {
+  return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function _renderArticleHistory(items) {
+  const list = document.getElementById('articleHistoryList');
+  const empty = document.getElementById('articleHistoryEmpty');
+  if (!list) return;
+  if (empty) empty.style.display = items.length ? 'none' : 'flex';
+  list.innerHTML = items.map(a => {
+    const full = (a.title || '') + '\n\n' + (a.body || '') + (a.cta ? '\n\n' + a.cta : '');
+    return '<div class="history-card">' +
+      '<div class="history-meta"><div class="history-title">' + escapeHtml(a.title || 'Untitled article') + '</div>' +
+      '<div class="history-date">' + _historyDate(a.timestamp) + '</div></div>' +
+      '<div class="history-platforms"><span class="hist-badge">' + escapeHtml(a.type || 'Article') + '</span>' +
+      (a.source ? '<span class="hist-badge">' + escapeHtml(a.source) + '</span>' : '') + '</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+      '<button class="history-expand-btn" onclick="this.parentElement.nextElementSibling.classList.toggle(\'open\'); this.textContent = this.parentElement.nextElementSibling.classList.contains(\'open\') ? \'Hide article\' : \'View article\'">View article</button>' +
+      '<button class="action-btn" data-copy="' + escapeHtml(full) + '">Copy</button></div>' +
+      '<div class="history-posts"><div class="post-body">' + escapeHtml(a.body || '') + '</div></div></div>';
+  }).join('');
+}
+
+function _renderImageHistory(items) {
+  const list = document.getElementById('imageHistoryList');
+  const empty = document.getElementById('imageHistoryEmpty');
+  if (!list) return;
+  if (empty) empty.style.display = items.length ? 'none' : 'flex';
+  list.innerHTML = items.map(i =>
+    '<div class="history-card">' +
+    '<div class="history-meta"><div class="history-title">' + escapeHtml((i.prompt || '').slice(0, 140)) + '</div>' +
+    '<div class="history-date">' + _historyDate(i.timestamp) + '</div></div>' +
+    '<div class="history-platforms"><span class="hist-badge">' + escapeHtml(i.ratio || '') + '</span><span class="hist-badge">' + escapeHtml(i.mode || 'auto') + '</span></div>' +
+    '<button class="action-btn" data-copy="' + escapeHtml(i.prompt || '') + '">Copy prompt</button></div>'
+  ).join('');
+}
+
+// Applies keyword, type, date range (and optional audience) filters across all History sections
+function filterHistory(audience) {
+  const list = document.getElementById('historyList');
+  if (audience !== undefined) filterHistory._audience = audience;
+  const aud = filterHistory._audience || 'all';
+  const q = (document.getElementById('historySearch')?.value || '').trim().toLowerCase();
+  const type = document.getElementById('historyTypeFilter')?.value || 'all';
+  const fromV = document.getElementById('historyDateFrom')?.value;
+  const toV = document.getElementById('historyDateTo')?.value;
+  const from = fromV ? new Date(fromV + 'T00:00:00') : null;
+  const to = toV ? new Date(toV + 'T23:59:59') : null;
+  const inRange = ts => { const d = new Date(ts); return (!from || d >= from) && (!to || d <= to); };
+  const matches = obj => !q || JSON.stringify(obj).toLowerCase().includes(q);
+
+  const batches = ((list && list._allBatches) || []).filter(b =>
+    inRange(b.timestamp) && matches(b) && (aud === 'all' || (b.audiences || []).includes(aud)));
+  const articles = Storage.get('articleHistory_' + activePersona, []).filter(a => inRange(a.timestamp) && matches(a));
+  const images = Storage.get('imageHistory', []).filter(i => inRange(i.timestamp) && matches(i));
+
+  if (list) _renderHistoryBatches(list, batches);
+  const empty = document.getElementById('historyEmpty');
+  if (empty) empty.style.display = batches.length ? 'none' : 'flex';
+  _renderArticleHistory(articles);
+  _renderImageHistory(images);
+
+  const setCount = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = n; };
+  setCount('postsCount', batches.length);
+  setCount('articlesCount', articles.length);
+  setCount('imagesCount', images.length);
+
+  const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? '' : 'none'; };
+  show('historyPostsSection', type === 'all' || type === 'posts');
+  show('historyArticlesSection', type === 'all' || type === 'articles');
+  show('historyImagesSection', type === 'all' || type === 'images');
+}
+
+function clearHistoryFilters() {
+  ['historySearch', 'historyDateFrom', 'historyDateTo'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  const t = document.getElementById('historyTypeFilter'); if (t) t.value = 'all';
+  filterHistory._audience = 'all';
+  filterHistory();
+}
+
+function toggleHistorySection(name) {
+  const body = document.getElementById(name + 'Body');
+  const chev = document.getElementById(name + 'Chevron');
+  if (!body) return;
+  const collapsed = body.style.display === 'none';
+  body.style.display = collapsed ? '' : 'none';
+  if (chev) chev.style.transform = collapsed ? '' : 'rotate(-90deg)';
 }
 
 function _renderHistoryBatches(list, batches) {
@@ -645,7 +880,7 @@ function _renderHistoryBatches(list, batches) {
         '<span class="platform-badge ' + meta.badgeClass + '">' + meta.label + '</span>' +
         audienceBadge +
         '</div>' +
-        '<button class="action-btn" onclick="copyPost(this, ' + JSON.stringify(item.post) + ')">Copy</button></div>' +
+        '<button class="action-btn" data-copy="' + escapeHtml(item.post) + '">Copy</button></div>' +
         '<div class="post-body">' + escapeHtml(item.post) + '</div></div>';
     }).join('');
 
@@ -655,26 +890,12 @@ function _renderHistoryBatches(list, batches) {
     return '<div class="history-card" data-audiences="' + escapeHtml(dataAudiences) + '">' +
       '<div class="history-meta"><div class="history-title">' + escapeHtml(batch.source || 'Untitled') + (snippet ? ' — ' + escapeHtml(snippet) + '...' : '') + '</div>' +
       '<div class="history-date">' + date + '</div></div>' +
-      (batch.url ? '<div class="history-url"><a href="' + escapeHtml(batch.url) + '" target="_blank">' + escapeHtml(batch.url) + '</a></div>' : '') +
+      (safeUrl(batch.url) ? '<div class="history-url"><a href="' + escapeHtml(safeUrl(batch.url)) + '" target="_blank" rel="noopener">' + escapeHtml(batch.url) + '</a></div>' : '') +
       '<div class="history-platforms">' + platformBadges + audienceBadges + hookBadge + '</div>' +
       summaryHtml +
       '<button class="history-expand-btn" onclick="this.nextElementSibling.classList.toggle(\'open\'); this.textContent = this.nextElementSibling.classList.contains(\'open\') ? \'Hide posts\' : \'View posts\'">View posts</button>' +
       '<div class="history-posts">' + postsHtml + '</div></div>';
   }).join('');
-}
-
-// Filter history by audience — called from the filter chips in index.html
-function filterHistory(audience) {
-  const list = document.getElementById('historyList');
-  if (!list || !list._allBatches) return;
-  if (audience === 'all') {
-    _renderHistoryBatches(list, list._allBatches);
-    return;
-  }
-  const filtered = list._allBatches.filter(b =>
-    b.audiences && b.audiences.includes(audience)
-  );
-  _renderHistoryBatches(list, filtered);
 }
 
 // ─── HOOKS ───────────────────────────────────────────────────────────────────
@@ -995,33 +1216,36 @@ function loadSettings() {
       ? '<span class="status-ok">Google Sheet connected.</span>'
       : '<span class="status-err">No Google Sheet connected yet.</span>';
   }
+  const openAiKey = Storage.get('openAiKey', '');
+  const openAiEl = document.getElementById('openAiKeyStatus');
+  if (openAiEl) {
+    openAiEl.innerHTML = openAiKey
+      ? '<span class="status-ok">OpenAI key is set.</span>'
+      : '<span class="status-err">No OpenAI key set.</span>';
+  }
   updatePerplexityBadge();
+}
+
+function clearAllKeys() {
+  if (!confirm('Remove your Anthropic, OpenAI and Perplexity keys from this browser? You can add them again any time.')) return;
+  ['apiKey', 'openAiKey', 'perplexityKey'].forEach(k => localStorage.removeItem(k));
+  ['apiKeyInput', 'openAiKeyInput', 'perplexityKeyInput'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  loadSettings();
+  const el = document.getElementById('clearKeysStatus');
+  if (el) el.innerHTML = '<span class="status-ok">All keys removed from this browser.</span>';
 }
 
 // ─── NAV ─────────────────────────────────────────────────────────────────────
 
 function initNav() {
   document.querySelectorAll('.nav-item').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const view = btn.dataset.view;
-      document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
-      document.getElementById('view-' + view).classList.remove('hidden');
-      if (view === 'history') renderHistory();
-      if (view === 'settings') loadSettings();
-      if (view === 'hooks') renderHooks();
-      if (view === 'afya') loadAfyaContext();
-    });
+    btn.addEventListener('click', () => showView(btn.dataset.view));
   });
 
   document.querySelectorAll('.persona-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       switchPersona(btn.dataset.persona);
-      document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
-      document.querySelector('.nav-item[data-view="compose"]').classList.add('active');
-      document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
-      document.getElementById('view-compose').classList.remove('hidden');
+      showView('compose');
     });
   });
 
@@ -1061,6 +1285,11 @@ async function init() {
   if (dot) dot.style.background = persona.color;
 
   const defaults = Storage.get('userDefaults', {});
+  // Migrate audience defaults saved by the old inline patch script
+  if (!defaults.audiencePrefs) {
+    const legacy = Storage.get('apiary_audience_defaults', null);
+    if (legacy && Object.keys(legacy).length) { defaults.audiencePrefs = legacy; Storage.set('userDefaults', defaults); }
+  }
   if (defaults.tone) {
     const el = document.getElementById('toneSelect');
     if (el) el.value = defaults.tone;
@@ -1082,6 +1311,8 @@ function clearArticleFields() {
   document.querySelectorAll('.source-content').forEach(el => el.value = '');
   document.querySelectorAll('.source-org').forEach(el => el.value = '');
   document.querySelectorAll('.source-url').forEach(el => el.value = '');
+  document.querySelectorAll('.source-content').forEach(el => delete el.dataset.sourceType);
+  document.querySelectorAll('.source-fetch-status').forEach(el => setFetchStatus(el, '', ''));
 
   const extraBlocks = document.querySelectorAll('.source-block:not(:first-child)');
   extraBlocks.forEach(el => el.remove());
@@ -1220,10 +1451,12 @@ Return exactly ${count} articles. Order by most relevant first.`;
 
     if (!Array.isArray(articles) || !articles.length) {
       resultsEl.innerHTML = '<div class="error-msg">No articles found. Try broadening your search topics or changing the recency filter.</div>';
-      return;
+    } else {
+      // Prefer the real cited URLs Perplexity returns when the model left a URL blank
+      const citations = data.citations || (data.search_results || []).map(r => r.url) || [];
+      articles.forEach(a => { a.url = safeUrl(a.url); });
+      renderDiscoverResults(articles, resultsEl, citations);
     }
-
-    renderDiscoverResults(articles, resultsEl);
 
   } catch (err) {
     resultsEl.innerHTML = '<div class="error-msg">Search failed: ' + escapeHtml(err.message) + '</div>';
@@ -1233,7 +1466,7 @@ Return exactly ${count} articles. Order by most relevant first.`;
   btn.innerHTML = 'Search for articles <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>';
 }
 
-function renderDiscoverResults(articles, container) {
+function renderDiscoverResults(articles, container, citations) {
   const header = document.createElement('div');
   header.className = 'discover-results-header';
   header.innerHTML = '<span class="discover-count">' + articles.length + ' article' + (articles.length !== 1 ? 's' : '') + ' found</span>';
@@ -1252,12 +1485,13 @@ function renderDiscoverResults(articles, container) {
         </div>
         <div class="discover-link-row">
           ${article.url ? '<a class="discover-ext-link" href="' + escapeHtml(article.url) + '" target="_blank" rel="noopener">↗ Open article</a>' : ''}
-          ${article.url ? '<button class="discover-copy-url-btn" onclick="copyDiscoverUrl(this, \'' + escapeHtml(article.url) + '\')">Copy URL</button>' : ''}
+          ${article.url ? '<button class="discover-copy-url-btn" data-copy="' + escapeHtml(article.url) + '">Copy URL</button>' : ''}
           <a class="discover-search-link" href="https://www.google.com/search?q=${encodeURIComponent((article.title || '') + ' ' + (article.source || ''))}" target="_blank" rel="noopener">🔍 Search Google</a>
         </div>
       </div>
       <div class="discover-card-title">${escapeHtml(article.title || 'Untitled')}</div>
       <div class="discover-card-summary">${escapeHtml(article.summary || '')}</div>
+      ${!article.url ? '<div class="discover-card-nourl">No direct link was returned, so full text cannot be fetched. Use Search Google to find it, then paste the URL in Compose or Article Writer.</div>' : ''}
       ${article.relevance ? '<div class="discover-card-relevance"><span class="discover-relevance-label">Why it matters:</span> ' + escapeHtml(article.relevance) + '</div>' : ''}
       <div class="discover-card-actions">
         <button class="action-btn discover-send-compose" onclick="sendToCompose(${idx})">
@@ -1292,50 +1526,60 @@ function getDiscoverArticleByIndex(idx) {
   try { return JSON.parse(cards[idx].dataset.article); } catch { return null; }
 }
 
-function sendToCompose(idx) {
+async function sendToCompose(idx) {
   const article = getDiscoverArticleByIndex(idx);
   if (!article) return;
 
-  const content = [article.title, article.summary, article.relevance].filter(Boolean).join('\n\n');
+  const summaryText = [article.title, article.summary].filter(Boolean).join('\n\n');
   const alertContentEl = document.getElementById('alertContent');
+  const statusEl = document.getElementById('alertFetchStatus');
   const sourceOrgEl = document.getElementById('sourceOrg');
   const articleUrlEl = document.getElementById('articleUrl');
-  if (alertContentEl) alertContentEl.value = content;
+  if (alertContentEl) alertContentEl.value = summaryText;
   if (sourceOrgEl) sourceOrgEl.value = article.source || '';
   if (articleUrlEl) articleUrlEl.value = article.url || '';
 
-  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
-  document.querySelector('.nav-item[data-view="compose"]').classList.add('active');
-  document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
-  document.getElementById('view-compose').classList.remove('hidden');
-
+  showView('compose');
   if (alertContentEl) {
     alertContentEl.style.borderColor = 'var(--teal-500)';
     setTimeout(() => { alertContentEl.style.borderColor = ''; }, 1500);
   }
+
+  if (article.url) {
+    await fillWithArticleText(article.url, alertContentEl, statusEl, article.title, summaryText);
+  } else {
+    alertContentEl.dataset.sourceType = 'summary';
+    setFetchStatus(statusEl, 'warn', 'This result had no direct link, so only the search summary was added. Paste the article text for accurate posts.');
+  }
 }
 
-function sendToWriter(idx) {
+async function sendToWriter(idx) {
   const article = getDiscoverArticleByIndex(idx);
   if (!article) return;
 
-  const content = [article.title, article.summary, article.relevance].filter(Boolean).join('\n\n');
+  const summaryText = [article.title, article.summary].filter(Boolean).join('\n\n');
 
-  const firstContent = document.querySelector('.source-content');
-  const firstOrg = document.querySelector('.source-org');
-  const firstUrl = document.querySelector('.source-url');
-  if (firstContent) firstContent.value = content;
-  if (firstOrg) firstOrg.value = article.source || '';
-  if (firstUrl) firstUrl.value = article.url || '';
+  // Use the first empty source block, or add a new one, so earlier sources are not overwritten
+  let block = Array.from(document.querySelectorAll('.source-block'))
+    .find(b => !b.querySelector('.source-content').value.trim());
+  if (!block) { addSource(); const all = document.querySelectorAll('.source-block'); block = all[all.length - 1]; }
 
-  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
-  document.querySelector('.nav-item[data-view="write"]').classList.add('active');
-  document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
-  document.getElementById('view-write').classList.remove('hidden');
+  const contentEl = block.querySelector('.source-content');
+  const statusEl = block.querySelector('.source-fetch-status');
+  block.querySelector('.source-org').value = article.source || '';
+  block.querySelector('.source-url').value = article.url || '';
+  contentEl.value = summaryText;
 
-  if (firstContent) {
-    firstContent.style.borderColor = 'var(--teal-500)';
-    setTimeout(() => { firstContent.style.borderColor = ''; }, 1500);
+  showView('write');
+  contentEl.style.borderColor = 'var(--teal-500)';
+  setTimeout(() => { contentEl.style.borderColor = ''; }, 1500);
+  block.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+  if (article.url) {
+    await fillWithArticleText(article.url, contentEl, statusEl, article.title, summaryText);
+  } else {
+    contentEl.dataset.sourceType = 'summary';
+    setFetchStatus(statusEl, 'warn', 'This result had no direct link, so only the search summary was added. Paste the article text for an accurate article and grounding check.');
   }
 }
 
@@ -1352,10 +1596,14 @@ function addSource() {
     '<span class="source-block-label">Source ' + count + '</span>' +
     '<button class="remove-source-btn" onclick="removeSource(this)">Remove</button>' +
     '</div>' +
-    '<textarea class="content-area source-content" placeholder="Paste article content, headline, or snippet..." style="min-height:90px;margin-bottom:6px;"></textarea>' +
+    '<textarea class="content-area source-content" placeholder="Paste article content, headline, or snippet — or enter a URL below and click Fetch text" style="min-height:90px;margin-bottom:6px;"></textarea>' +
+    '<div class="fetch-status source-fetch-status" aria-live="polite"></div>' +
     '<div class="field-row" style="margin-bottom:0;">' +
     '<input type="text" class="field-input source-org" placeholder="Organization (e.g. NACHC, HRSA)" />' +
+    '<div class="url-fetch-row">' +
     '<input type="text" class="field-input source-url" placeholder="URL (optional)" />' +
+    '<button type="button" class="fetch-btn" onclick="fetchSourceFromUrl(this)" title="Pull the full article text from this URL">Fetch text</button>' +
+    '</div>' +
     '</div>';
   container.appendChild(div);
   renumberSources();
@@ -1461,7 +1709,7 @@ Respond with ONLY a valid JSON object — no markdown, no explanation, no code f
   return JSON.parse(clean);
 }
 
-function renderHallucinationCheck(check, container) {
+function renderHallucinationCheck(check, container, excerptSources) {
   const passed = check.passed && (!check.issues || check.issues.length === 0);
   const issueCount = (check.issues || []).length;
 
@@ -1490,6 +1738,9 @@ function renderHallucinationCheck(check, container) {
     '<span class="check-confidence">Confidence: ' + escapeHtml(check.confidence || 'medium') + '</span>' +
     '</div>' +
     '<div class="check-summary">' + escapeHtml(check.summary || '') + '</div>' +
+    ((excerptSources && excerptSources.length)
+      ? '<div class="check-excerpt-note">Note: ' + escapeHtml(excerptSources.join(', ')) + (excerptSources.length > 1 ? ' are' : ' is') + ' only a short summary or excerpt, not the full article. This check can only confirm claims against the text you provided.</div>'
+      : '') +
     '</div>' +
     issuesHtml;
 
@@ -1509,7 +1760,8 @@ async function generateArticle() {
     const content = block.querySelector('.source-content').value.trim();
     const org = block.querySelector('.source-org').value.trim();
     const url = block.querySelector('.source-url').value.trim();
-    if (content) sources.push({ content, org, url, index: i + 1 });
+    const sourceType = block.querySelector('.source-content').dataset.sourceType || '';
+    if (content) sources.push({ content, org, url, index: i + 1, excerptOnly: sourceType === 'summary' || content.length < 600 });
   });
 
   if (!sources.length) {
@@ -1520,8 +1772,8 @@ async function generateArticle() {
   const angle = document.getElementById('articleAngle').value.trim();
   const includeAfyaArticle = document.getElementById('includeAfyaArticle')?.checked && Storage.get('afyaContext', null);
   const articleHooks = Storage.get(hooksStorageKey(), []);
-  const articleHookId = parseInt(document.getElementById('articleHookSelect')?.value);
-  const articleHook = articleHooks.find(h => h.id === articleHookId) || null;
+  const articleHookId = document.getElementById('articleHookSelect')?.value || '';
+  const articleHook = articleHookId ? (articleHooks.find(h => String(h.id) === articleHookId) || null) : null;
   const type = document.getElementById('articleType').value;
   const meta = ARTICLE_TYPES[type];
 
@@ -1611,6 +1863,7 @@ Respond with ONLY a valid JSON object — no markdown, no explanation, no code f
     const article = JSON.parse(clean);
 
     renderArticle(article, meta, resultsEl);
+    showImageGenSection(article);
 
     const checkLoadingEl = document.createElement('div');
     checkLoadingEl.className = 'loading-msg';
@@ -1620,11 +1873,27 @@ Respond with ONLY a valid JSON object — no markdown, no explanation, no code f
     try {
       const hallucinationCheck = await runHallucinationCheck(article, sourcesBlock, apiKey);
       checkLoadingEl.remove();
-      renderHallucinationCheck(hallucinationCheck, resultsEl);
+      const excerptSources = sources.filter(s => s.excerptOnly).map(s => 'Source ' + s.index);
+      renderHallucinationCheck(hallucinationCheck, resultsEl, excerptSources);
     } catch (checkErr) {
       checkLoadingEl.remove();
       console.warn('Hallucination check failed:', checkErr.message);
+      const warn = document.createElement('div');
+      warn.className = 'error-msg';
+      warn.textContent = 'The source grounding check could not run (' + checkErr.message + '). Review the article against your sources before publishing.';
+      resultsEl.appendChild(warn);
     }
+
+    const articleHistoryKey = 'articleHistory_' + activePersona;
+    const articleHistory = Storage.get(articleHistoryKey, []);
+    articleHistory.unshift({
+      timestamp: new Date().toISOString(),
+      type: meta.label,
+      source: sources.map(s => s.org).filter(Boolean).join(', '),
+      url: sources.map(s => s.url).filter(Boolean).join(', '),
+      title: article.title, body: article.body, cta: article.cta
+    });
+    Storage.set(articleHistoryKey, articleHistory.slice(0, 30));
 
     const scriptUrl = Storage.get('scriptUrl', '');
     if (scriptUrl) {
@@ -1660,7 +1929,7 @@ Respond with ONLY a valid JSON object — no markdown, no explanation, no code f
     if (err.name === 'AbortError') {
       resultsEl.innerHTML = '<div class="stop-note">Generation was stopped.</div>';
     } else {
-      resultsEl.innerHTML = '<div class="error-msg">Error: ' + err.message + '</div>';
+      resultsEl.innerHTML = '<div class="error-msg">Error: ' + escapeHtml(err.message) + '</div>';
     }
   }
 
@@ -1703,33 +1972,33 @@ function renderArticle(article, meta, container) {
       <div class="article-section">
         <div class="article-section-header">
           <span class="article-section-label">Title</span>
-          <button class="action-btn" onclick="copyArticleSection(this, ${JSON.stringify(article.title)})">Copy</button>
+          <button class="action-btn" data-copy="${escapeHtml(article.title || '')}">Copy</button>
         </div>
         <div class="article-title-text">${escapeHtml(article.title)}</div>
       </div>
       <div class="article-section">
         <div class="article-section-header">
           <span class="article-section-label">Key takeaways</span>
-          <button class="action-btn" onclick="copyArticleSection(this, ${JSON.stringify(takeawaysText)})">Copy</button>
+          <button class="action-btn" data-copy="${escapeHtml(takeawaysText)}">Copy</button>
         </div>
         <ul class="article-takeaways">${takeawaysHtml}</ul>
       </div>
       <div class="article-section">
         <div class="article-section-header">
           <span class="article-section-label">${escapeHtml(meta.label)} — ${escapeHtml(meta.wordCount)}</span>
-          <button class="action-btn" onclick="copyArticleSection(this, ${JSON.stringify(article.body)})">Copy</button>
+          <button class="action-btn" data-copy="${escapeHtml(article.body || '')}">Copy</button>
         </div>
         <div class="article-body">${bodyHtml}</div>
       </div>
       <div class="article-section">
         <div class="article-section-header">
           <span class="article-section-label">Call to action</span>
-          <button class="action-btn" onclick="copyArticleSection(this, ${JSON.stringify(article.cta)})">Copy</button>
+          <button class="action-btn" data-copy="${escapeHtml(article.cta || '')}">Copy</button>
         </div>
-        <div class="article-cta">${escapeHtml(article.cta)}</div>
+        <div class="article-cta">${escapeHtml(article.cta || '')}</div>
       </div>
       <div class="article-copy-all">
-        <button class="generate-btn" style="margin-top:0;" onclick="copyArticleSection(this, ${JSON.stringify(article.title + '\n\nKEY TAKEAWAYS\n' + takeawaysText + '\n\n' + article.body + '\n\n' + article.cta)})">
+        <button class="generate-btn" style="margin-top:0;" data-copy="${escapeHtml((article.title || '') + '\n\nKEY TAKEAWAYS\n' + takeawaysText + '\n\n' + (article.body || '') + '\n\n' + (article.cta || ''))}">
           Copy full article
           <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
         </button>
@@ -1916,75 +2185,58 @@ function showImageGenSection(article) {
   document.getElementById('imageError').textContent = '';
 }
 
-async function generateImage() {
-async function generateImage() {
+// Shared image generation used by both Article Writer and Compose.
+// ids: { tabSelector, autoPrompt, customPrompt, uploadFile, uploadPrompt, style, ratio, btn, error, result, filename }
+async function runImageGeneration(ids) {
+  const errorEl = document.getElementById(ids.error);
+  const resultEl = document.getElementById(ids.result);
+  const btn = document.getElementById(ids.btn);
   const apiKey = Storage.get('openAiKey', '');
-  if (!apiKey) {
-    document.getElementById('imageError').textContent = 'Please add your OpenAI API key in Settings first.';
-    return;
-  }
+  if (!apiKey) { errorEl.textContent = 'Please add your OpenAI API key in Settings first.'; return; }
 
-  const activeTab = document.querySelector('.image-mode-tab.active');
-  const mode = activeTab ? activeTab.textContent.toLowerCase() : 'auto';
-  const isUpload = mode.includes('upload');
-  const isCustom = mode.includes('custom');
+  const activeTab = document.querySelector(ids.tabSelector + '.active');
+  const mode = activeTab ? (activeTab.dataset.mode || 'auto') : 'auto';
+  const isUpload = mode === 'upload';
+  const isCustom = mode === 'prompt';
 
-  let prompt = '';
+  const promptId = isUpload ? ids.uploadPrompt : isCustom ? ids.customPrompt : ids.autoPrompt;
+  const prompt = (document.getElementById(promptId)?.value || '').trim();
+  if (!prompt) { errorEl.textContent = isUpload ? 'Please describe how to modify the image.' : 'Please enter an image prompt.'; return; }
+
+  let file = null;
   if (isUpload) {
-    prompt = document.getElementById('imageUploadPrompt').value.trim();
-  } else if (isCustom) {
-    prompt = document.getElementById('imagePromptCustom').value.trim();
-  } else {
-    prompt = document.getElementById('imagePrompt').value.trim();
+    file = document.getElementById(ids.uploadFile)?.files[0];
+    if (!file) { errorEl.textContent = 'Please choose an image file to modify.'; return; }
   }
 
-  if (!prompt) {
-    document.getElementById('imageError').textContent = 'Please enter a prompt or modification instruction.';
-    return;
-  }
-
-  const style = document.getElementById('imageStyle').value;
-  const ratio = document.getElementById('imageRatio').value;
-  const btn = document.getElementById('imageGenBtn');
+  const style = document.getElementById(ids.style)?.value || '';
+  const ratio = document.getElementById(ids.ratio)?.value || '1024x1024';
+  const btnHtml = btn.innerHTML;
   btn.disabled = true;
-  btn.innerHTML = '<span>Generating image...</span>';
-  document.getElementById('imageError').textContent = '';
-  document.getElementById('imageResult').innerHTML = '<div class="loading-msg">Generating your image — this takes 10-20 seconds...</div>';
+  btn.innerHTML = '<span>Generating image…</span>';
+  errorEl.textContent = '';
+  resultEl.innerHTML = '<div class="loading-msg">Generating your image. This usually takes 10 to 30 seconds…</div>';
 
   try {
     let response;
-
+    const fullPrompt = prompt + (style ? '. Style: ' + style : '') + '. No text overlays. No watermarks.';
     if (isUpload) {
-      const file = document.getElementById('imageUploadFile').files[0];
-      if (!file) throw new Error('Please upload an image file first.');
       const formData = new FormData();
       formData.append('image', file);
-      formData.append('prompt', prompt + '. Style: ' + style + '. No text overlays.');
+      formData.append('prompt', fullPrompt);
       formData.append('model', 'gpt-image-1');
       formData.append('size', ratio);
       formData.append('quality', 'medium');
-
       response = await fetch('https://api.openai.com/v1/images/edits', {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + apiKey },
         body: formData
       });
     } else {
-      const fullPrompt = prompt + '. Style: ' + style + '. No text overlays. No watermarks.';
       response = await fetch('https://api.openai.com/v1/images/generations', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + apiKey
-        },
-        body: JSON.stringify({
-          model: 'gpt-image-1',
-          prompt: fullPrompt,
-          n: 1,
-          size: ratio,
-          quality: 'medium',
-          output_format: 'png'
-        })
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+        body: JSON.stringify({ model: 'gpt-image-1', prompt: fullPrompt, n: 1, size: ratio, quality: 'medium', output_format: 'png' })
       });
     }
 
@@ -1994,40 +2246,46 @@ async function generateImage() {
     }
 
     const data = await response.json();
-    const b64 = data.data[0].b64_json;
+    const b64 = data.data && data.data[0] && data.data[0].b64_json;
+    if (!b64) throw new Error('OpenAI did not return an image. Try again or adjust the prompt.');
     const imageUrl = 'data:image/png;base64,' + b64;
 
-    document.getElementById('imageResult').innerHTML = `
+    resultEl.innerHTML = `
       <div class="image-result">
         <img src="${imageUrl}" alt="Generated image" class="generated-image" />
         <div class="image-result-actions">
-          <a href="${imageUrl}" download="afya-image.png" class="save-btn" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;">
+          <a href="${imageUrl}" download="${ids.filename}" class="save-btn" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;">
             Download image
             <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
           </a>
         </div>
-      </div>
-    `;
+        <div class="field-hint" style="margin-top:6px;">Download the image now. Images are not kept in History because they are too large for browser storage.</div>
+      </div>`;
 
-    saveImageToHistory({
-      timestamp: new Date().toISOString(),
-      prompt: prompt,
-      url: imageUrl,
-      style: style,
-      ratio: ratio,
-      mode: isUpload ? 'upload' : isCustom ? 'custom' : 'auto'
-    });
-
+    saveImageToHistory({ timestamp: new Date().toISOString(), prompt, style, ratio, mode });
   } catch (err) {
-    document.getElementById('imageResult').innerHTML = '';
-    document.getElementById('imageError').textContent = 'Error: ' + err.message;
+    resultEl.innerHTML = '';
+    errorEl.textContent = 'Error: ' + err.message;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = btnHtml;
   }
-
-  btn.disabled = false;
-  btn.innerHTML = 'Generate image <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>';
 }
-  
-  btn.innerHTML = 'Generate image <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>';
+
+function generateImage() {
+  return runImageGeneration({
+    tabSelector: '.image-mode-tab', autoPrompt: 'imagePrompt', customPrompt: 'imagePromptCustom',
+    uploadFile: 'imageUploadFile', uploadPrompt: 'imageUploadPrompt', style: 'imageStyle', ratio: 'imageRatio',
+    btn: 'imageGenBtn', error: 'imageError', result: 'imageResult', filename: 'afya-article-image.png'
+  });
+}
+
+function generateImageCompose() {
+  return runImageGeneration({
+    tabSelector: '.image-mode-tab-compose', autoPrompt: 'imagePromptCompose', customPrompt: 'imagePromptCustomCompose',
+    uploadFile: 'imageUploadFileCompose', uploadPrompt: 'imageUploadPromptCompose', style: 'imageStyleCompose', ratio: 'imageRatioCompose',
+    btn: 'imageGenBtnCompose', error: 'imageErrorCompose', result: 'imageResultCompose', filename: 'afya-social-image.png'
+  });
 }
 
 function copyImageUrl(url) {
@@ -2037,8 +2295,9 @@ function copyImageUrl(url) {
 }
 
 function saveImageToHistory(image) {
-  const history = Storage.get('imageHistory', []);
-  history.unshift(image);
+  const { url, ...meta } = image; // never store base64 image data — it fills browser storage
+  const history = Storage.get('imageHistory', []).map(({ url, ...m }) => m);
+  history.unshift(meta);
   Storage.set('imageHistory', history.slice(0, 50));
 }
 
@@ -2046,8 +2305,15 @@ function saveImageToHistory(image) {
 
 
 window.saveOpenAiKey = saveOpenAiKey;
+window.generateImageCompose = generateImageCompose;
+window.fetchComposeFromUrl = fetchComposeFromUrl;
+window.fetchSourceFromUrl = fetchSourceFromUrl;
+window.clearAllKeys = clearAllKeys;
+window.showView = showView;
+window.clearHistoryFilters = clearHistoryFilters;
+window.toggleHistorySection = toggleHistorySection;
 window.generateImage = generateImage;
-async function generateImageCompose(){const apiKey=Storage.get('openAiKey','');if(!apiKey){document.getElementById('imageErrorCompose').textContent='Please add your OpenAI API key in Settings first.';return;}let prompt=document.getElementById('imagePromptCompose')?.value.trim()||'';if(!prompt){document.getElementById('imageErrorCompose').textContent='Please enter a prompt.';return;}const style=document.getElementById('imageStyleCompose').value;const ratio=document.getElementById('imageRatioCompose').value;const btn=document.getElementById('imageGenBtnCompose');btn.disabled=true;btn.innerHTML='<span>Generating...</span>';document.getElementById('imageErrorCompose').textContent='';document.getElementById('imageResultCompose').innerHTML='<div class="loading-msg">Generating your image...</div>';try{const response=await fetch('https://api.openai.com/v1/images/generations',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+apiKey},body:JSON.stringify({model:'gpt-image-1',prompt:prompt+'. Style: '+style+'. No text overlays.',n:1,size:ratio,quality:'medium',output_format:'png'})});if(!response.ok){const err=await response.json().catch(()=>({}));throw new Error(err.error?.message||'OpenAI API error '+response.status);}const data=await response.json();const imageUrl='data:image/png;base64,'+data.data[0].b64_json;document.getElementById('imageResultCompose').innerHTML='<div class="image-result"><img src="'+imageUrl+'" alt="Generated image" class="generated-image" /><div class="image-result-actions"><a href="'+imageUrl+'" download="afya-social-image.png" class="save-btn" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;">Download image</a></div></div>';saveImageToHistory({timestamp:new Date().toISOString(),prompt:prompt,url:imageUrl,style:style,ratio:ratio});}catch(err){document.getElementById('imageResultCompose').innerHTML='';document.getElementById('imageErrorCompose').textContent='Error: '+err.message;}btn.disabled=false;btn.innerHTML='Generate image';}
+
 window.generateImageCompose=generateImageCompose;
 window.applyImagePreset = applyImagePreset;
 window.applyImagePresetCompose = applyImagePresetCompose;
@@ -2056,6 +2322,3 @@ window.toggleImageSectionCompose = toggleImageSectionCompose;
 window.showImageGenSection = showImageGenSection;
 window.copyImageUrl = copyImageUrl;
 
-
-
-document.addEventListener('DOMContentLoaded', init);
