@@ -5,6 +5,10 @@ let abortController = null;
 // One place to change the Claude model used everywhere in the app
 const CLAUDE_MODEL = 'claude-sonnet-4-6';
 
+// Today's date, so the model treats current news as current rather than "future-dated"
+const TODAY_LABEL = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+const DATE_RULE = 'Today is ' + TODAY_LABEL + '. Content dated on or before today is current news, not future news.';
+
 const NO_EMDASH_RULE = ' Never use em dashes or en dashes in any content. Use commas, periods, or rewrite sentences instead. Never use the word delve, crucial, or pivotal.';
 
 // PERSONAS
@@ -275,9 +279,29 @@ async function fillWithArticleText(url, textarea, statusEl, title, fallbackText)
   }
   if (fallbackText != null) textarea.value = fallbackText;
   textarea.dataset.sourceType = 'summary';
-  setFetchStatus(statusEl, 'warn', 'Could not retrieve the full article (the site may block automated access or require a subscription). ' +
-    (fallbackText ? 'Using the search summary only — ' : '') + 'For accurate content, open the article and paste its text here.');
+  setFetchStatus(statusEl, 'warn', 'Could not retrieve the full article from ' + siteName(url) + '. This site likely blocks automatic fetching or requires a subscription. ' +
+    (fallbackText ? 'Using the search summary only for now. ' : '') + 'For accurate content, open the article and paste its text here.');
   return false;
+}
+
+function siteName(url) {
+  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return 'this site'; }
+}
+
+// True when a text box holds little more than a link (e.g. someone pasted only the URL)
+function isMostlyUrl(text) {
+  const t = String(text || '').trim();
+  if (!/https?:\/\//i.test(t)) return false;
+  return t.replace(/https?:\/\/\S+/gi, '').replace(/\s+/g, ' ').trim().length < 40;
+}
+
+function firstUrl(text) {
+  const m = String(text || '').match(/https?:\/\/\S+/i);
+  return m ? safeUrl(m[0].replace(/[).,]+$/, '')) : '';
+}
+
+function blockedSiteMessage(url) {
+  return 'Only a link was provided, and ' + siteName(url) + ' blocks automatic fetching. Open the article, copy its text, and paste it in place of the link. The AI can only work from text, it cannot open links.';
 }
 
 async function fetchComposeFromUrl() {
@@ -481,6 +505,10 @@ async function generateSummary(content, source, apiKey) {
   const persona = getPersona();
   const summaryPrompt = `Analyze this article or alert and return a structured intelligence brief tailored for ${persona.fullLabel}.
 
+${DATE_RULE}
+Use ONLY facts stated in the CONTENT. Do not add outside facts, background, or assumptions.
+If the CONTENT is only a link, only a headline, or too thin to summarize accurately, do not guess. Instead respond with exactly: {"insufficient": true, "reason": "one short sentence"}
+
 CONTENT:
 ${content}
 ${source ? '\nSOURCE: ' + source : ''}
@@ -553,10 +581,22 @@ async function generatePosts() {
   const apiKey = Storage.get('apiKey', '');
   if (!apiKey) { showError('Please add your Anthropic API key in Settings first.'); return; }
 
-  const content = document.getElementById('alertContent').value.trim();
+  let content = document.getElementById('alertContent').value.trim();
   const source = document.getElementById('sourceOrg').value.trim();
-  const url = document.getElementById('articleUrl').value.trim();
+  let url = document.getElementById('articleUrl').value.trim();
   if (!content) { showError('Please paste your alert content before generating.'); return; }
+
+  // If only a link was pasted, try to fetch the article text first; stop if the site blocks it
+  if (isMostlyUrl(content)) {
+    const link = firstUrl(content);
+    if (!link) { showError('Please paste the article text, not just a link.'); return; }
+    if (!url) { url = link; document.getElementById('articleUrl').value = link; }
+    const contentEl = document.getElementById('alertContent');
+    contentEl.value = '';
+    const ok = await fillWithArticleText(link, contentEl, document.getElementById('alertFetchStatus'), '', link);
+    if (!ok) { showError(blockedSiteMessage(link)); return; }
+    content = contentEl.value.trim();
+  }
 
   const platforms = Array.from(
     document.querySelectorAll('.plat-toggle input:checked')
@@ -603,6 +643,14 @@ async function generatePosts() {
   try {
     summary = await generateSummary(content, source, apiKey);
     summaryLoading.remove();
+    if (summary && summary.insufficient) {
+      const errDiv = document.createElement('div');
+      errDiv.className = 'error-msg';
+      errDiv.textContent = 'Not enough article content to write accurate posts' + (summary.reason ? ': ' + summary.reason : '.') + ' Paste the full article text and try again.';
+      container.appendChild(errDiv);
+      resetButtons();
+      return;
+    }
     renderSummary(summary, container);
   } catch (err) {
     summaryLoading.remove();
@@ -657,6 +705,8 @@ ${activeHook ? '\nMESSAGING HOOK — weave this angle into the post: ' + activeH
 
 PLATFORM INSTRUCTIONS:
 ${platformMeta.instructions}
+
+${DATE_RULE} Use ONLY facts stated in the CONTENT. Do not add outside facts, statistics, or background.
 
 Tailor the language, framing, and calls to action specifically to the TARGET AUDIENCE above — their concerns, context, terminology, and what matters to them. Do not use generic healthcare language; speak directly to this audience.
 
@@ -1723,7 +1773,7 @@ async function runHallucinationCheck(article, sourcesBlock, apiKey, afyaText) {
     return (i + 1) + '. ' + claim + source;
   }).join('\n');
 
-  const checkPrompt = `You are a fact-checking assistant. Your job is to review a generated article and verify that every factual claim is directly supported by the provided source material.
+  const checkPrompt = `You are a fact-checking assistant. Your job is to review a generated article and verify that every factual claim is directly supported by the provided source material. ${DATE_RULE} Never flag a claim only because its date seems recent or in the future.
 
 SOURCES:
 ${sourcesBlock}
@@ -1825,6 +1875,20 @@ async function generateArticle() {
     return;
   }
 
+  // If a source box holds only a link, try to fetch the article text; stop if the site blocks it
+  for (const block of document.querySelectorAll('.source-block')) {
+    const ta = block.querySelector('.source-content');
+    const text = ta.value.trim();
+    if (!text || !isMostlyUrl(text)) continue;
+    const link = firstUrl(text);
+    if (!link) { document.getElementById('articleError').textContent = 'Please paste the article text, not just a link.'; return; }
+    const urlInput = block.querySelector('.source-url');
+    if (urlInput && !urlInput.value.trim()) urlInput.value = link;
+    ta.value = '';
+    const ok = await fillWithArticleText(link, ta, block.querySelector('.source-fetch-status'), '', link);
+    if (!ok) { document.getElementById('articleError').textContent = blockedSiteMessage(link); return; }
+  }
+
   const sourceBlocks = document.querySelectorAll('.source-block');
   const sources = [];
   sourceBlocks.forEach((block, i) => {
@@ -1875,6 +1939,8 @@ async function generateArticle() {
   ).join('\n\n');
 
   const prompt = `You are an expert healthcare content writer. You write for Afya, a company that helps health centers capture revenue through automated care coordination documentation.
+
+${DATE_RULE}
 
 ${audienceContext ? 'AUDIENCE CONTEXT:\n' + audienceContext + '\n' : ''}
 Write content that synthesizes ALL of the sources below into a single cohesive piece. Every source must contribute meaningfully. Draw connections between sources only where clearly supported by the source material. Write content based STRICTLY AND ONLY on the sources provided. Do not invent examples, fabricate statistics, or add outside knowledge.
@@ -2143,7 +2209,7 @@ function getAfyaContextBlock(mode) {
   const ctx = Storage.get('afyaContext', null);
   if (!ctx || !ctx.text) return '';
   if (mode === 'post') {
-    return `\n\nAFYA PRODUCT CONTEXT: you may add at most one short sentence connecting the news to the problem Afya solves. Stay within the platform word limit. Do not add a separate section or a hard sell, and do not make any product claim that is not stated here:\n${ctx.text}`;
+    return `\n\nAFYA PRODUCT CONTEXT: structure the post in three parts. 1) Open with one or two sentences that tie this news to the problem Afya solves and tease what Afya does. 2) Cover the news itself, which should be most of the post. 3) Close with a short line or paragraph on how Afya helps. Stay within the platform word limit. Keep it helpful, not a hard sell, and do not make any product claim that is not stated here:\n${ctx.text}`;
   }
   return `\n\nAFYA PRODUCT CONTEXT — use this to add an opening paragraph connecting the news to the problem Afya solves, and a closing "How Afya Can Help" section. Do not fabricate any product claims beyond what is stated here. Weave naturally — not as a hard sell:\n${ctx.text}`;
 }
