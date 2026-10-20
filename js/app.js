@@ -123,6 +123,11 @@ const PLATFORM_META = {
     badgeClass: 'badge-reddit',
     instructions: `Reddit post for relevant communities. First line must be: "Suggested subreddit: r/[name]" Second line must be: "Title: [compelling title under 200 chars]" Then a blank line, then the post body (150-250 words). No hashtags. Informative, Reddit-native tone — not promotional. Cite facts. Invite genuine discussion.`
   },
+  instagram: {
+    label: 'Instagram — caption',
+    badgeClass: 'badge-instagram',
+    instructions: `Instagram caption to accompany an image. 80-150 words. The first line must work as a hook on its own, because only about 125 characters show before "more". Do not include any URLs, since links are not clickable in Instagram captions; point readers to "the link in our bio" instead. Use short lines and line breaks for readability. End with 3 to 5 specific, relevant hashtags. Warm, human, and visual in feel.`
+  },
   linkedin: {
     label: 'LinkedIn — professional post',
     badgeClass: 'badge-linkedin',
@@ -737,6 +742,10 @@ ${useAfya ? getAfyaContextBlock('post') : ''}`;
   }
 
 
+  // Instagram: show the image style chooser every time (nothing is generated until the user picks)
+  const igPost = posts.find(p => p.platform === 'instagram');
+  if (igPost) renderInstagramImageChooser(container, { content, source, summary, caption: igPost.post });
+
   // Refresh the auto image prompt from the latest content; leave the image section as the user set it
   if (posts.length) {
     const imagePromptEl = document.getElementById('imagePromptCompose');
@@ -1233,6 +1242,9 @@ function loadSettings() {
       ? '<span class="status-ok">Google Sheet connected.</span>'
       : '<span class="status-err">No Google Sheet connected yet.</span>';
   }
+  const brandStyleEl = document.getElementById('imageBrandStyleInput');
+  if (brandStyleEl) brandStyleEl.value = getImageBrandStyle();
+
   const openAiKey = Storage.get('openAiKey', '');
   const openAiEl = document.getElementById('openAiKeyStatus');
   if (openAiEl) {
@@ -2376,3 +2388,237 @@ window.toggleImageSectionCompose = toggleImageSectionCompose;
 window.showImageGenSection = showImageGenSection;
 window.copyImageUrl = copyImageUrl;
 
+
+// ─── INSTAGRAM IMAGE CHOOSER ─────────────────────────────────────────────────
+// Shown under the posts every time a batch includes Instagram. Nothing is
+// generated until the user picks a style and clicks Generate.
+
+const DEFAULT_IMAGE_BRAND_STYLE = 'Clean, modern healthcare brand style. Teal (#4BAAA5) and deep blue (#2d6e82) on an off-white background, simple bold sans-serif type, generous spacing, no clutter.';
+
+const IG_IMAGE_TYPES = {
+  photo:    { label: 'Photo (no text)',       desc: 'A realistic image that fits the story' },
+  stat:     { label: 'Headline + stat card',  desc: 'Bold headline and one key number' },
+  quote:    { label: 'Quote card',            desc: 'One line quoted from the article' },
+  carousel: { label: 'Carousel (3 slides)',   desc: 'Walks through the key facts' }
+};
+
+function getImageBrandStyle() {
+  return Storage.get('imageBrandStyle', '') || DEFAULT_IMAGE_BRAND_STYLE;
+}
+
+function saveImageBrandStyle() {
+  const el = document.getElementById('imageBrandStyleInput');
+  const status = document.getElementById('imageBrandStyleStatus');
+  Storage.set('imageBrandStyle', (el?.value || '').trim());
+  if (status) {
+    status.innerHTML = '<span class="status-ok">Image brand style saved.</span>';
+    setTimeout(() => { status.innerHTML = ''; }, 2000);
+  }
+}
+
+function renderInstagramImageChooser(container, ctx) {
+  const card = document.createElement('div');
+  card.className = 'ig-chooser';
+  card.innerHTML =
+    '<div class="ig-chooser-title">Instagram image</div>' +
+    '<div class="ig-chooser-sub">Pick a style to make an image here, or skip this and use your own.</div>' +
+    '<div class="ig-chooser-options">' +
+    Object.entries(IG_IMAGE_TYPES).map(([k, t]) =>
+      '<button type="button" class="ig-option" data-ig-type="' + k + '">' +
+      '<span class="ig-option-label">' + t.label + '</span>' +
+      '<span class="ig-option-desc">' + t.desc + '</span></button>').join('') +
+    '</div>' +
+    '<div class="ig-chooser-alt">' +
+    '<button type="button" class="action-btn ig-canva-btn">Copy caption and open Canva</button>' +
+    '<button type="button" class="action-btn ig-skip-btn">I\'ll make my own</button>' +
+    '</div>' +
+    '<div class="ig-chooser-body"></div>';
+  container.appendChild(card);
+
+  const body = card.querySelector('.ig-chooser-body');
+  const options = card.querySelectorAll('.ig-option');
+  const setActive = btn => options.forEach(b => b.classList.toggle('active', b === btn));
+
+  options.forEach(btn => btn.addEventListener('click', () => {
+    setActive(btn);
+    startInstagramImage(btn.dataset.igType, ctx, body);
+  }));
+  card.querySelector('.ig-skip-btn').addEventListener('click', () => {
+    setActive(null);
+    body.innerHTML = '<div class="field-hint">No problem. Remember that Instagram posts need an image before you publish.</div>';
+  });
+  card.querySelector('.ig-canva-btn').addEventListener('click', () => {
+    setActive(null);
+    navigator.clipboard.writeText(ctx.caption || '').catch(() => {});
+    window.open('https://www.canva.com/create/instagram-posts/', '_blank', 'noopener');
+    body.innerHTML = '<div class="field-hint">The Instagram caption is copied to your clipboard. In Canva, apply your Afya brand kit to keep colors, fonts and logo on brand.</div>';
+  });
+}
+
+async function draftInstagramGraphicText(type, ctx) {
+  const apiKey = Storage.get('apiKey', '');
+  const schemas = {
+    stat: '{"headline": "max 8 words", "stat": "one number or short figure copied exactly as it appears in the article, or empty string if the article has no number", "statLabel": "max 8 words explaining what the number means"}',
+    quote: '{"quote": "one sentence copied word for word from the article, max 25 words", "attribution": "the person or organization the article attributes it to, or the publisher"}',
+    carousel: '{"slides": [{"title": "max 6 words", "text": "max 20 words"}, {"title": "", "text": ""}, {"title": "", "text": ""}]}'
+  };
+  const guidance = {
+    stat: 'Pick the single most striking number for the audience.',
+    quote: 'The quote must be an exact, unaltered sentence from the article. Do not paraphrase.',
+    carousel: 'Exactly 3 slides. Slide 1 is a hook, slide 2 the key facts, slide 3 why it matters.'
+  };
+  const prompt = 'Draft the text for an Instagram graphic based on this article. Use ONLY facts stated in the article. Never invent numbers or quotes. ' + guidance[type] + NO_EMDASH_RULE +
+    '\n\nARTICLE:\n' + ctx.content.slice(0, 8000) + (ctx.source ? '\nSOURCE: ' + ctx.source : '') +
+    '\n\nRespond with ONLY a valid JSON object, no markdown, no code fences:\n' + schemas[type];
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: 800, messages: [{ role: 'user', content: prompt }] })
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error?.message || 'API error ' + response.status);
+  }
+  const data = await response.json();
+  const raw = (data.content || []).map(b => b.text || '').join('').trim();
+  return JSON.parse(raw.replace(/```json|```/g, '').trim());
+}
+
+function _normText(t) {
+  return String(t || '').toLowerCase().replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/\s+/g, ' ').trim();
+}
+
+function _igField(id, label, value, multiline) {
+  return '<label class="field-label" for="' + id + '">' + label + '</label>' +
+    (multiline
+      ? '<textarea id="' + id + '" class="content-area" style="min-height:60px;">' + escapeHtml(value || '') + '</textarea>'
+      : '<input type="text" id="' + id + '" class="field-input" value="' + escapeHtml(value || '') + '" />');
+}
+
+async function startInstagramImage(type, ctx, body) {
+  const uid = 'ig' + Date.now();
+  let fieldsHtml = '';
+
+  if (type === 'photo') {
+    const auto = 'Professional healthcare photograph related to: ' + ctx.content.slice(0, 150) + '. Diverse community members and healthcare workers. Warm and authentic.';
+    fieldsHtml = _igField(uid + '-prompt', 'Image description <span class="ig-edit-hint">edit freely</span>', auto, true);
+  } else {
+    body.innerHTML = '<div class="loading-msg">Drafting the text for your graphic...</div>';
+    let t;
+    try { t = await draftInstagramGraphicText(type, ctx); }
+    catch (err) { body.innerHTML = '<div class="error-msg">Could not draft the graphic text: ' + escapeHtml(err.message) + '</div>'; return; }
+
+    if (type === 'stat') {
+      fieldsHtml = _igField(uid + '-headline', 'Headline', t.headline) +
+        _igField(uid + '-stat', 'Key number', t.stat) +
+        _igField(uid + '-statLabel', 'What the number means', t.statLabel);
+      if (!t.stat) fieldsHtml = '<div class="ig-warn">The article has no clear number to feature. Add one from the article, or try another style.</div>' + fieldsHtml;
+    } else if (type === 'quote') {
+      const found = t.quote && _normText(ctx.content).includes(_normText(t.quote).replace(/^"|"$/g, ''));
+      fieldsHtml = (found ? '' : '<div class="ig-warn">This quote was not found word for word in the article text. Check it against the article, edit it, or try another style.</div>') +
+        _igField(uid + '-quote', 'Quote', t.quote, true) +
+        _igField(uid + '-attr', 'Attribution', t.attribution);
+    } else if (type === 'carousel') {
+      const slides = (t.slides || []).slice(0, 3);
+      while (slides.length < 3) slides.push({ title: '', text: '' });
+      fieldsHtml = slides.map((sl, i) =>
+        '<div class="ig-slide-fields"><div class="ig-slide-num">Slide ' + (i + 1) + '</div>' +
+        _igField(uid + '-s' + i + 't', 'Title', sl.title) +
+        _igField(uid + '-s' + i + 'x', 'Text', sl.text, true) + '</div>').join('');
+    }
+  }
+
+  body.innerHTML =
+    '<div class="ig-fields">' + fieldsHtml + '</div>' +
+    '<div class="field-hint">Images are square, which fits the Instagram feed. The look comes from Settings, under Image brand style.</div>' +
+    '<button type="button" class="generate-btn ig-generate-btn">Generate ' + (type === 'carousel' ? '3 slides' : 'image') + '</button>' +
+    '<div class="inline-error ig-error" role="alert"></div>' +
+    '<div class="ig-results"></div>';
+
+  body.querySelector('.ig-generate-btn').addEventListener('click', () => generateInstagramImages(type, uid, body));
+}
+
+function _val(id) { return (document.getElementById(id)?.value || '').trim(); }
+
+function buildInstagramPrompts(type, uid) {
+  const style = getImageBrandStyle();
+  const exact = ' Spell every word exactly as given. No other text, no logos, no watermarks.';
+  if (type === 'photo') {
+    return [_val(uid + '-prompt') + ' Square composition. Photorealistic, warm natural lighting. No text, signs, logos or watermarks in the image.'];
+  }
+  if (type === 'stat') {
+    return ['Square Instagram graphic. ' + style + ' Large bold headline reading exactly: "' + _val(uid + '-headline') + '". Below it, a very large number reading exactly: "' + _val(uid + '-stat') + '", with smaller text under it reading exactly: "' + _val(uid + '-statLabel') + '".' + exact];
+  }
+  if (type === 'quote') {
+    const attr = _val(uid + '-attr');
+    return ['Square Instagram quote card. ' + style + ' Large quotation marks, then the quote reading exactly: "' + _val(uid + '-quote') + '"' + (attr ? ', with a smaller attribution line reading exactly: "' + attr + '"' : '') + '.' + exact];
+  }
+  return [0, 1, 2].map(i =>
+    'Slide ' + (i + 1) + ' of a 3-slide Instagram carousel. Keep the same layout, colors and type on every slide. ' + style +
+    ' Bold title reading exactly: "' + _val(uid + '-s' + i + 't') + '". Smaller body text reading exactly: "' + _val(uid + '-s' + i + 'x') + '". Small "' + (i + 1) + '/3" in the bottom corner.' + exact);
+}
+
+async function openAiGenerateImage(prompt, size) {
+  const apiKey = Storage.get('openAiKey', '');
+  const response = await fetch('https://api.openai.com/v1/images/generations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+    body: JSON.stringify({ model: 'gpt-image-1', prompt, n: 1, size, quality: 'medium', output_format: 'png' })
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error?.message || 'OpenAI API error ' + response.status);
+  }
+  const data = await response.json();
+  const b64 = data.data && data.data[0] && data.data[0].b64_json;
+  if (!b64) throw new Error('OpenAI did not return an image. Try again or adjust the text.');
+  return 'data:image/png;base64,' + b64;
+}
+
+async function generateInstagramImages(type, uid, body) {
+  const errEl = body.querySelector('.ig-error');
+  const results = body.querySelector('.ig-results');
+  const btn = body.querySelector('.ig-generate-btn');
+  errEl.textContent = '';
+  if (!Storage.get('openAiKey', '')) { errEl.textContent = 'Please add your OpenAI API key in Settings first.'; return; }
+
+  const prompts = buildInstagramPrompts(type, uid);
+  if (prompts.some(p => /reading exactly: ""/.test(p)) || (type === 'photo' && !_val(uid + '-prompt'))) {
+    errEl.textContent = 'Please fill in all the text fields first.';
+    return;
+  }
+
+  const btnHtml = btn.innerHTML;
+  btn.disabled = true;
+  results.innerHTML = '';
+  try {
+    for (let i = 0; i < prompts.length; i++) {
+      btn.textContent = prompts.length > 1 ? 'Generating slide ' + (i + 1) + ' of ' + prompts.length + '…' : 'Generating image…';
+      const url = await openAiGenerateImage(prompts[i], '1024x1024');
+      const name = 'afya-instagram-' + type + (prompts.length > 1 ? '-slide' + (i + 1) : '') + '.png';
+      const item = document.createElement('div');
+      item.className = 'ig-result-item';
+      item.innerHTML = '<img src="' + url + '" alt="Generated Instagram ' + (prompts.length > 1 ? 'slide ' + (i + 1) : 'image') + '" class="generated-image" />' +
+        '<a href="' + url + '" download="' + name + '" class="save-btn ig-download">Download' + (prompts.length > 1 ? ' slide ' + (i + 1) : '') + '</a>';
+      results.appendChild(item);
+    }
+    const note = document.createElement('div');
+    note.className = 'ig-warn';
+    note.textContent = 'AI images sometimes misspell words. Check every word before posting.' + (type === 'carousel' ? ' Slides are made one at a time, so the look may vary a little between them.' : '');
+    results.appendChild(note);
+    saveImageToHistory({ timestamp: new Date().toISOString(), prompt: prompts.join(' | '), style: 'Instagram ' + IG_IMAGE_TYPES[type].label, ratio: '1024x1024', mode: 'instagram-' + type });
+  } catch (err) {
+    errEl.textContent = 'Error: ' + err.message;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = btnHtml;
+  }
+}
+
+window.saveImageBrandStyle = saveImageBrandStyle;
