@@ -2,6 +2,9 @@
 
 let abortController = null;
 
+// One place to change the Claude model used everywhere in the app
+const CLAUDE_MODEL = 'claude-sonnet-4-6';
+
 const NO_EMDASH_RULE = ' Never use em dashes or en dashes in any content. Use commas, periods, or rewrite sentences instead. Never use the word delve, crucial, or pivotal.';
 
 // PERSONAS
@@ -85,12 +88,20 @@ const TONE_DESCRIPTIONS = {
   urgent: 'Action-oriented and advocacy-focused — highlight urgency and call the audience to pay attention or act.',
   community: 'Warm, conversational, and community-oriented — invite discussion and peer engagement.',
   veteran_respectful: 'Respectful and mission-oriented — honor service, speak plainly, connect healthcare to the veteran mission.',
-  veteran_peer: 'Peer-to-peer tone, as if from a fellow service member — direct, personal, and grounded.',
+  veteran_peer: 'Plain-spoken, peer-level tone that talks with veterans as equals: direct, personal, and grounded. Never claim or imply that the writer or the organization served in the military.',
   navigator_empowering: 'Empowering and educational — give navigators practical tools and celebrate their community impact.',
   navigator_caregiver: 'Warm caregiver/family support tone — accessible, compassionate, focused on families.'
 };
 
 let activePersona = 'fqhc';
+
+// Audience checkbox values use 'navigators'; the persona key is 'navigator'
+const AUDIENCE_TO_PERSONA = { fqhc: 'fqhc', veterans: 'veterans', navigators: 'navigator' };
+
+function systemPromptForAudience(audienceKey) {
+  const p = PERSONAS[AUDIENCE_TO_PERSONA[audienceKey]] || getPersona();
+  return p.systemPrompt;
+}
 
 function getPersona() {
   return PERSONAS[activePersona];
@@ -140,6 +151,23 @@ function escapeHtml(str) {
 
 function proxyUrl(url) {
   return 'https://corsproxy.io/?' + encodeURIComponent(url);
+}
+
+// Google Apps Script GET requests. Tries Google directly first so the Script URL
+// (which works like a password) is not sent to a third-party proxy. The proxy is
+// only a fallback; once direct calls work for you, set this to false.
+const SHEET_PROXY_FALLBACK = true;
+
+async function sheetGet(fullUrl) {
+  try {
+    const r = await fetch(fullUrl, { redirect: 'follow' });
+    if (r.ok) return r;
+    throw new Error('HTTP ' + r.status);
+  } catch (e) {
+    if (!SHEET_PROXY_FALLBACK) throw e;
+    console.warn('Direct Sheet request failed, using proxy fallback:', e.message);
+    return fetch(proxyUrl(fullUrl));
+  }
 }
 
 // Only allow http(s) links in generated markup (blocks javascript: and data: URLs)
@@ -470,7 +498,7 @@ Respond with ONLY a valid JSON object — no markdown, no explanation, no code f
     },
     signal: abortController ? abortController.signal : undefined,
     body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
+      model: CLAUDE_MODEL,
       max_tokens: 1000,
       messages: [{ role: 'user', content: summaryPrompt }]
     })
@@ -504,7 +532,7 @@ async function loadFromGoogleSheet() {
   const scriptUrl = Storage.get('scriptUrl', '');
   if (!scriptUrl) return null;
   try {
-    const response = await fetch(proxyUrl(scriptUrl + '?action=get&persona=' + activePersona));
+    const response = await sheetGet(scriptUrl + '?action=get&persona=' + activePersona);
     const data = await response.json();
     if (data.success) return data.batches;
     return null;
@@ -605,6 +633,8 @@ async function generatePosts() {
       container.appendChild(loadingDiv);
 
       const toneDescription = TONE_DESCRIPTIONS[tone] || tone;
+      // Reddit communities usually remove company self-promotion, so Afya context is left out there
+      const useAfya = includeAfya && platform !== 'reddit';
 
       const userPrompt = `Generate a single social media post based on this article or alert.
 
@@ -629,7 +659,7 @@ Respond with ONLY a valid JSON object — no markdown, no explanation, no code f
 {"platform": "${platform}", "audience": "${audienceKey}", "audienceLabel": "${audienceMeta.label}", "post": "your post text here"}
 
 Use \\n for line breaks inside the post text.
-${includeAfya ? getAfyaContextBlock() : ''}`;
+${useAfya ? getAfyaContextBlock('post') : ''}`;
 
       try {
         const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -642,9 +672,9 @@ ${includeAfya ? getAfyaContextBlock() : ''}`;
           },
           signal: abortController ? abortController.signal : undefined,
           body: JSON.stringify({
-            model: 'claude-sonnet-4-6',
+            model: CLAUDE_MODEL,
             max_tokens: 2000,
-            system: persona.systemPrompt,
+            system: systemPromptForAudience(audienceKey),
             messages: [{ role: 'user', content: userPrompt }]
           })
         });
@@ -707,24 +737,11 @@ ${includeAfya ? getAfyaContextBlock() : ''}`;
   }
 
 
+  // Refresh the auto image prompt from the latest content; leave the image section as the user set it
   if (posts.length) {
     const imagePromptEl = document.getElementById('imagePromptCompose');
-    const content = document.getElementById('alertContent').value.trim();
-    const source = document.getElementById('sourceOrg').value.trim();
     if (imagePromptEl) {
       imagePromptEl.value = 'Professional healthcare photograph related to: ' + content.slice(0, 150) + (source ? ' Source: ' + source : '') + '. Diverse community members and healthcare workers. Warm and authentic. No text in image.';
-    }
-    const imageSection = document.getElementById('imageGenSectionCompose');
-    if (imageSection) {
-      const toggle = document.createElement('div');
-      toggle.className = 'field-block';
-      toggle.style.marginTop = '1rem';
-      toggle.innerHTML = '<label class="afya-toggle-label"><input type="checkbox" id="includeImageCompose" onchange="toggleImageSectionCompose()" /><span class="afya-toggle-text">Generate an image for these posts</span></label>';
-      const container = document.getElementById('postsContainer');
-      if (container && !document.getElementById('includeImageCompose')) {
-        container.appendChild(toggle);
-      }
-      imageSection.style.display = 'none';
     }
   }
 
@@ -917,7 +934,7 @@ async function saveHook() {
   if (scriptUrl) {
     try {
       const params = new URLSearchParams({ action: 'saveHook', id: hook.id, name: hook.name, text: hook.text, persona: activePersona, audienceTag, hooksTab: getPersona().hooksTab });
-      await fetch(proxyUrl(scriptUrl + '?' + params.toString()));
+      await sheetGet(scriptUrl + '?' + params.toString());
     } catch (err) {
       console.warn('Could not save hook to Sheet:', err.message);
     }
@@ -939,7 +956,7 @@ async function deleteHook(id) {
   if (scriptUrl) {
     try {
       const params = new URLSearchParams({ action: 'deleteHook', id, hooksTab: getPersona().hooksTab });
-      await fetch(proxyUrl(scriptUrl + '?' + params.toString()));
+      await sheetGet(scriptUrl + '?' + params.toString());
     } catch (err) {
       console.warn('Could not delete hook from Sheet:', err.message);
     }
@@ -978,7 +995,7 @@ async function saveEditHook(id) {
   if (scriptUrl) {
     try {
       const params = new URLSearchParams({ action: 'updateHook', id, name, text, hooksTab: getPersona().hooksTab });
-      await fetch(proxyUrl(scriptUrl + '?' + params.toString()));
+      await sheetGet(scriptUrl + '?' + params.toString());
     } catch (err) {
       console.warn('Could not update hook in Sheet:', err.message);
     }
@@ -1017,7 +1034,7 @@ async function renderHooks() {
   const scriptUrl = Storage.get('scriptUrl', '');
   if (scriptUrl) {
     try {
-      const response = await fetch(proxyUrl(scriptUrl + '?action=getHooks&hooksTab=' + getPersona().hooksTab));
+      const response = await sheetGet(scriptUrl + '?action=getHooks&hooksTab=' + getPersona().hooksTab);
       const data = await response.json();
       if (data.success && data.hooks && data.hooks.length) {
         Storage.set(hooksStorageKey(), data.hooks);
@@ -1453,9 +1470,8 @@ Return exactly ${count} articles. Order by most relevant first.`;
       resultsEl.innerHTML = '<div class="error-msg">No articles found. Try broadening your search topics or changing the recency filter.</div>';
     } else {
       // Prefer the real cited URLs Perplexity returns when the model left a URL blank
-      const citations = data.citations || (data.search_results || []).map(r => r.url) || [];
-      articles.forEach(a => { a.url = safeUrl(a.url); });
-      renderDiscoverResults(articles, resultsEl, citations);
+      verifyDiscoverUrls(articles, data);
+      renderDiscoverResults(articles, resultsEl);
     }
 
   } catch (err) {
@@ -1466,7 +1482,41 @@ Return exactly ${count} articles. Order by most relevant first.`;
   btn.innerHTML = 'Search for articles <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>';
 }
 
-function renderDiscoverResults(articles, container, citations) {
+// Perplexity returns the pages it actually searched (citations / search_results).
+// URLs the model writes into its JSON can be invented, so each one is checked
+// against that list. If it is missing, a cited page with a matching title is used;
+// otherwise the link is kept but marked as unverified.
+function normalizeUrl(u) {
+  try { const x = new URL(u); return (x.hostname.replace(/^www\./, '') + x.pathname.replace(/\/$/, '')).toLowerCase(); }
+  catch { return ''; }
+}
+
+function titleWords(t) {
+  return new Set(String(t || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(w => w.length > 3));
+}
+
+function verifyDiscoverUrls(articles, data) {
+  const results = (data.search_results || []).map(r => ({ url: safeUrl(r.url), title: r.title || '' })).filter(r => r.url);
+  (data.citations || []).forEach(u => { const su = safeUrl(u); if (su && !results.some(r => r.url === su)) results.push({ url: su, title: '' }); });
+  const known = new Set(results.map(r => normalizeUrl(r.url)));
+
+  articles.forEach(a => {
+    a.url = safeUrl(a.url);
+    if (a.url && known.has(normalizeUrl(a.url))) { a.urlVerified = true; return; }
+    const want = titleWords(a.title);
+    let best = null, bestScore = 0;
+    results.forEach(r => {
+      const have = titleWords(r.title);
+      let hits = 0; want.forEach(w => { if (have.has(w)) hits++; });
+      const score = want.size ? hits / want.size : 0;
+      if (score > bestScore) { bestScore = score; best = r; }
+    });
+    if (best && bestScore >= 0.6) { a.url = best.url; a.urlVerified = true; return; }
+    a.urlVerified = false;
+  });
+}
+
+function renderDiscoverResults(articles, container) {
   const header = document.createElement('div');
   header.className = 'discover-results-header';
   header.innerHTML = '<span class="discover-count">' + articles.length + ' article' + (articles.length !== 1 ? 's' : '') + ' found</span>';
@@ -1491,6 +1541,7 @@ function renderDiscoverResults(articles, container, citations) {
       </div>
       <div class="discover-card-title">${escapeHtml(article.title || 'Untitled')}</div>
       <div class="discover-card-summary">${escapeHtml(article.summary || '')}</div>
+      ${article.url && !article.urlVerified ? '<div class="discover-card-unverified">This link was not among the pages Perplexity actually searched, so it may be wrong. Open it to confirm it is the right article before using it.</div>' : ''}
       ${!article.url ? '<div class="discover-card-nourl">No direct link was returned, so full text cannot be fetched. Use Search Google to find it, then paste the URL in Compose or Article Writer.</div>' : ''}
       ${article.relevance ? '<div class="discover-card-relevance"><span class="discover-relevance-label">Why it matters:</span> ' + escapeHtml(article.relevance) + '</div>' : ''}
       <div class="discover-card-actions">
@@ -1645,7 +1696,7 @@ const ARTICLE_TYPES = {
   }
 };
 
-async function runHallucinationCheck(article, sourcesBlock, apiKey) {
+async function runHallucinationCheck(article, sourcesBlock, apiKey, afyaText) {
   const takeawayLines = (article.takeaways || []).map((t, i) => {
     const claim = typeof t === 'object' ? t.claim : t;
     const source = typeof t === 'object' && t.source ? ' [Source: ' + t.source + ']' : '';
@@ -1656,7 +1707,7 @@ async function runHallucinationCheck(article, sourcesBlock, apiKey) {
 
 SOURCES:
 ${sourcesBlock}
-
+${afyaText ? '\nCOMPANY REFERENCE (Afya product information supplied by the author). Claims about Afya are supported if they appear here. Flag any Afya claim that goes beyond this text:\n' + afyaText + '\n' : ''}
 ARTICLE TO CHECK:
 Title: ${article.title}
 
@@ -1692,7 +1743,7 @@ Respond with ONLY a valid JSON object — no markdown, no explanation, no code f
     },
     signal: abortController ? abortController.signal : undefined,
     body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
+      model: CLAUDE_MODEL,
       max_tokens: 1500,
       messages: [{ role: 'user', content: checkPrompt }]
     })
@@ -1846,7 +1897,7 @@ Respond with ONLY a valid JSON object — no markdown, no explanation, no code f
       },
       signal: abortController ? abortController.signal : undefined,
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
+        model: CLAUDE_MODEL,
         max_tokens: 4000,
         messages: [{ role: 'user', content: prompt }]
       })
@@ -1871,7 +1922,7 @@ Respond with ONLY a valid JSON object — no markdown, no explanation, no code f
     resultsEl.appendChild(checkLoadingEl);
 
     try {
-      const hallucinationCheck = await runHallucinationCheck(article, sourcesBlock, apiKey);
+      const hallucinationCheck = await runHallucinationCheck(article, sourcesBlock, apiKey, includeAfyaArticle ? includeAfyaArticle.text : '');
       checkLoadingEl.remove();
       const excerptSources = sources.filter(s => s.excerptOnly).map(s => 'Source ' + s.index);
       renderHallucinationCheck(hallucinationCheck, resultsEl, excerptSources);
@@ -2065,9 +2116,12 @@ function updateAfyaContextDates() {
   });
 }
 
-function getAfyaContextBlock() {
+function getAfyaContextBlock(mode) {
   const ctx = Storage.get('afyaContext', null);
   if (!ctx || !ctx.text) return '';
+  if (mode === 'post') {
+    return `\n\nAFYA PRODUCT CONTEXT: you may add at most one short sentence connecting the news to the problem Afya solves. Stay within the platform word limit. Do not add a separate section or a hard sell, and do not make any product claim that is not stated here:\n${ctx.text}`;
+  }
   return `\n\nAFYA PRODUCT CONTEXT — use this to add an opening paragraph connecting the news to the problem Afya solves, and a closing "How Afya Can Help" section. Do not fabricate any product claims beyond what is stated here. Weave naturally — not as a hard sell:\n${ctx.text}`;
 }
 function switchImageMode(mode, btn) {
