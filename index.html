@@ -6,7 +6,7 @@
 <title>Apiary Media Center</title>
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://api.anthropic.com https://api.openai.com https://api.perplexity.ai https://r.jina.ai https://corsproxy.io https://script.google.com https://script.googleusercontent.com; object-src 'none'; base-uri 'self'; form-action 'self'" />
 <meta name="referrer" content="no-referrer" />
-<link rel="stylesheet" href="css/style.css?v=4" />
+<link rel="stylesheet" href="css/style.css?v=7" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
@@ -306,6 +306,13 @@
                 <div class="plat-chip">
                   <div class="plat-icon" style="background:#FF4500;"></div>
                   <div><div class="plat-name">Reddit</div><div class="plat-sub">Community post</div></div>
+                </div>
+              </label>
+              <label class="plat-toggle">
+                <input type="checkbox" value="instagram" />
+                <div class="plat-chip">
+                  <div class="plat-icon" style="background:linear-gradient(45deg,#F58529,#DD2A7B,#8134AF);"></div>
+                  <div><div class="plat-name">Instagram</div><div class="plat-sub">Caption + image</div></div>
                 </div>
               </label>
               <label class="plat-toggle">
@@ -971,6 +978,17 @@ Afya is a revenue capture platform for FQHCs that automatically documents care c
 </div>
 
         <div class="settings-card">
+          <div class="settings-card-title">Image brand style</div>
+          <div class="field-block" style="margin-top:1rem;">
+            <label class="field-label" for="imageBrandStyleInput">Describe your brand look for Instagram graphics</label>
+            <textarea id="imageBrandStyleInput" class="content-area" style="min-height:90px;"></textarea>
+            <div class="field-hint">Used for stat cards, quote cards and carousels. Copy your Afya brand colors (hex codes) and font style from your Canva brand kit here.</div>
+            <button class="save-btn" style="margin-top:.5rem;align-self:flex-start;" onclick="saveImageBrandStyle()">Save</button>
+            <div id="imageBrandStyleStatus" style="font-size:12px;"></div>
+          </div>
+        </div>
+
+        <div class="settings-card">
           <div class="settings-card-title">Perplexity API key</div>
           <div class="field-block" style="margin-top:1rem;">
             <div style="display:flex;gap:8px;align-items:flex-end;">
@@ -1131,7 +1149,7 @@ Afya is a revenue capture platform for FQHCs that automatically documents care c
 
 </div>
 
-<script src="js/app.js?v=4"></script>
+<script src="js/app.js?v=7"></script>
 
 
 
