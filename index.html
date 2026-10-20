@@ -15,7 +15,7 @@
 /* ── Audience selector ── */
 .audience-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 10px;
   margin-top: 8px;
 }
@@ -79,6 +79,7 @@
 .audience-badge.fqhc    { background: rgba(13,148,136,.12); color: #0d9488; }
 .audience-badge.veterans { background: rgba(99,102,241,.12); color: #6366f1; }
 .audience-badge.navigators { background: rgba(245,158,11,.12); color: #d97706; }
+.audience-badge.epidemiologists { background: rgba(14,116,144,.12); color: #0e7490; }
 
 /* History filter bar */
 .history-filters {
@@ -280,6 +281,17 @@
                 </div>
               </label>
 
+              <label class="audience-toggle">
+                <input type="checkbox" name="audience" value="epidemiologists" />
+                <div class="audience-chip">
+                  <div class="audience-icon" style="background:rgba(14,116,144,.12);">🔬</div>
+                  <div>
+                    <div class="audience-name">Epidemiologists</div>
+                    <div class="audience-sub">Public health &amp; surveillance</div>
+                  </div>
+                </div>
+              </label>
+
             </div>
           </div>
 
@@ -343,6 +355,10 @@
                 <optgroup label="Navigator-focused">
                   <option value="navigator_empowering">Empowering / educational</option>
                   <option value="navigator_caregiver">Caregiver / family support</option>
+                </optgroup>
+                <optgroup label="Epidemiologist-focused">
+                  <option value="epi_evidence">Evidence-based / precise</option>
+                  <option value="epi_practical">Practical / public health peer</option>
                 </optgroup>
               </select>
             </div>
@@ -503,6 +519,16 @@
                   </div>
                 </div>
               </label>
+              <label class="audience-toggle">
+                <input type="checkbox" name="discoverAudience" value="epidemiologists" />
+                <div class="audience-chip">
+                  <div class="audience-icon" style="background:rgba(14,116,144,.12);">🔬</div>
+                  <div>
+                    <div class="audience-name">Epidemiologists</div>
+                    <div class="audience-sub">Public health</div>
+                  </div>
+                </div>
+              </label>
             </div>
           </div>
 
@@ -581,6 +607,7 @@
               <option value="fqhc">FQHC Community</option>
               <option value="veterans">Veterans &amp; Military</option>
               <option value="navigators">Family Health Navigators</option>
+              <option value="epidemiologists">Epidemiologists</option>
             </select>
           </div>
 
@@ -602,6 +629,7 @@
             <button class="filter-chip" data-hook-filter="fqhc">🏥 FQHC</button>
             <button class="filter-chip" data-hook-filter="veterans">🎖️ Veterans</button>
             <button class="filter-chip" data-hook-filter="navigators">🧭 Navigators</button>
+            <button class="filter-chip" data-hook-filter="epidemiologists">🔬 Epidemiologists</button>
           </div>
 
           <div id="hooksList"></div>
@@ -654,6 +682,16 @@
                   <div>
                     <div class="audience-name">Navigators</div>
                     <div class="audience-sub">Family health nav.</div>
+                  </div>
+                </div>
+              </label>
+              <label class="audience-toggle">
+                <input type="checkbox" name="articleAudience" value="epidemiologists" />
+                <div class="audience-chip">
+                  <div class="audience-icon" style="background:rgba(14,116,144,.12);">🔬</div>
+                  <div>
+                    <div class="audience-name">Epidemiologists</div>
+                    <div class="audience-sub">Public health</div>
                   </div>
                 </div>
               </label>
@@ -1049,6 +1087,10 @@
                 <option value="navigator_empowering">Empowering / educational</option>
                 <option value="navigator_caregiver">Caregiver / family support</option>
               </optgroup>
+              <optgroup label="Epidemiologist-focused">
+                <option value="epi_evidence">Evidence-based / precise</option>
+                <option value="epi_practical">Practical / public health peer</option>
+              </optgroup>
             </select>
           </div>
 
@@ -1064,6 +1106,9 @@
               </label>
               <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
                 <input type="checkbox" id="defaultAudienceNavigators" /> 🧭 Family Health Navigators
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;">
+                <input type="checkbox" id="defaultAudienceEpidemiologists" /> 🔬 Epidemiologists
               </label>
             </div>
           </div>
@@ -1161,7 +1206,7 @@
 
 </div>
 
-<script src="js/app.js?v=10"></script>
+<script src="js/app.js?v=11"></script>
 
 
 

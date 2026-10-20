@@ -54,6 +54,14 @@ const PERSONAS = {
     hooksTab: 'Veterans_Hooks',
     color: '#6366F1',
     systemPrompt: `You are an expert social media strategist specializing in healthcare communications for veterans, active-duty service members, and military families. You have deep knowledge of the veteran healthcare ecosystem: VA healthcare system, TRICARE, the Mission Act and community care networks, service-connected disability benefits, the gap between VA coverage and community health center access, veteran mental health and suicide prevention, MST (military sexual trauma) services, and the unique healthcare challenges of transitioning service members. Your content resonates with veterans, caregivers of veterans, VSO (veteran service organization) staff, and healthcare providers who serve military-connected patients. Use plain, direct language that honors their service. Reference shared values of mission, service, and community. Avoid bureaucratic or condescending tone. Use inclusive phrases like "those who served" or "our veteran community." Never sensationalize military trauma.${NO_EMDASH_RULE}`
+  },
+  epidemiologists: {
+    label: 'Epidemiologists',
+    fullLabel: 'Epidemiologists & Public Health',
+    sheetTab: 'Epi_Posts',
+    hooksTab: 'Epi_Hooks',
+    color: '#0E7490',
+    systemPrompt: `You are an expert communications strategist for epidemiologists and public health professionals. You understand the field: state and local health departments, CDC and CSTE, disease surveillance and case reporting, syndromic surveillance, electronic case reporting, outbreak investigation, immunization registries, wastewater surveillance, public health data modernization, and health equity data. Your content resonates with epidemiologists, surveillance coordinators, public health informaticians, and health officers. Be precise and evidence-based. Lead with the data and what it means. Use correct terms (incidence vs prevalence, rates vs counts, correlation vs causation). Note limitations and uncertainty when the source does. Never overstate findings or sensationalize outbreaks. Avoid hype and marketing language.${NO_EMDASH_RULE}`
   }
 };
 
@@ -82,6 +90,13 @@ Lead with respect. Use "those who served" or "our veteran community." Avoid bure
     persona: `Writing for certified health navigators, community health workers, and patient advocates.
 Use empowering, educational language. Reference the CMS Navigator Program, Marketplace enrollment, Medicaid/CHIP, CHWs, and supporting multi-generational or immigrant families.'
 Keep language accessible. Emphasize practical steps and community-based support.`
+  },
+  epidemiologists: {
+    label: 'Epidemiologists',
+    searchTerms: ['epidemiology', 'public health surveillance', 'disease surveillance', 'CDC', 'health department data'],
+    persona: `Writing for epidemiologists, surveillance staff, public health informaticians, and health officers at state and local health departments.
+Use precise, evidence-based language. Lead with the data and its public health significance. Reference surveillance systems, case reporting, outbreak response, and data modernization where the source supports it.
+Distinguish counts from rates and correlation from causation. Note limitations. No hype.`
   }
 };
 
@@ -94,13 +109,15 @@ const TONE_DESCRIPTIONS = {
   veteran_respectful: 'Respectful and mission-oriented — honor service, speak plainly, connect healthcare to the veteran mission.',
   veteran_peer: 'Plain-spoken, peer-level tone that talks with veterans as equals: direct, personal, and grounded. Never claim or imply that the writer or the organization served in the military.',
   navigator_empowering: 'Empowering and educational — give navigators practical tools and celebrate their community impact.',
-  navigator_caregiver: 'Warm caregiver/family support tone — accessible, compassionate, focused on families.'
+  navigator_caregiver: 'Warm caregiver/family support tone — accessible, compassionate, focused on families.',
+  epi_evidence: 'Evidence-based and precise: lead with the data, define terms, note limitations, and never overstate findings.',
+  epi_practical: 'Practical and peer-to-peer for public health teams: what this means for surveillance, reporting, and day-to-day work.'
 };
 
 let activePersona = 'fqhc';
 
 // Audience checkbox values use 'navigators'; the persona key is 'navigator'
-const AUDIENCE_TO_PERSONA = { fqhc: 'fqhc', veterans: 'veterans', navigators: 'navigator' };
+const AUDIENCE_TO_PERSONA = { fqhc: 'fqhc', veterans: 'veterans', navigators: 'navigator', epidemiologists: 'epidemiologists' };
 
 function systemPromptForAudience(audienceKey) {
   const p = PERSONAS[AUDIENCE_TO_PERSONA[audienceKey]] || getPersona();
@@ -926,7 +943,7 @@ function toggleHistorySection(name) {
 }
 
 function _renderHistoryBatches(list, batches) {
-  const AUDIENCE_EMOJIS = { fqhc: '🏥', veterans: '🎖️', navigators: '🧭' };
+  const AUDIENCE_EMOJIS = { fqhc: '🏥', veterans: '🎖️', navigators: '🧭', epidemiologists: '🔬' };
 
   list.innerHTML = batches.map(function(batch) {
     const date = new Date(batch.timestamp).toLocaleDateString('en-US', {
@@ -1123,7 +1140,7 @@ async function renderHooks() {
   }
   if (empty) empty.style.display = 'none';
 
-  const AUDIENCE_LABELS = { fqhc: '🏥 FQHC', veterans: '🎖️ Veterans', navigators: '🧭 Navigators' };
+  const AUDIENCE_LABELS = { fqhc: '🏥 FQHC', veterans: '🎖️ Veterans', navigators: '🧭 Navigators', epidemiologists: '🔬 Epidemiologists' };
 
   list.innerHTML = hooks.map(hook => {
     const audienceTag = hook.audienceTag || '';
@@ -1235,7 +1252,8 @@ function saveDefaults() {
   const audiencePrefs = {
     fqhc: document.getElementById('defaultAudienceFqhc')?.checked ?? true,
     veterans: document.getElementById('defaultAudienceVeterans')?.checked ?? false,
-    navigators: document.getElementById('defaultAudienceNavigators')?.checked ?? false
+    navigators: document.getElementById('defaultAudienceNavigators')?.checked ?? false,
+    epidemiologists: document.getElementById('defaultAudienceEpidemiologists')?.checked ?? false
   };
   Storage.set('userDefaults', { tone, audiencePrefs });
 
@@ -1252,7 +1270,7 @@ function saveDefaults() {
 
 function applyDefaultAudiences(prefs) {
   if (!prefs) return;
-  ['fqhc', 'veterans', 'navigators'].forEach(a => {
+  ['fqhc', 'veterans', 'navigators', 'epidemiologists'].forEach(a => {
     document.querySelectorAll('input[name="audience"][value="' + a + '"]').forEach(el => {
       el.checked = prefs[a] || false;
     });
@@ -1283,6 +1301,7 @@ function loadSettings() {
     if (document.getElementById('defaultAudienceFqhc')) document.getElementById('defaultAudienceFqhc').checked = ap.fqhc !== undefined ? ap.fqhc : true;
     if (document.getElementById('defaultAudienceVeterans')) document.getElementById('defaultAudienceVeterans').checked = ap.veterans || false;
     if (document.getElementById('defaultAudienceNavigators')) document.getElementById('defaultAudienceNavigators').checked = ap.navigators || false;
+    if (document.getElementById('defaultAudienceEpidemiologists')) document.getElementById('defaultAudienceEpidemiologists').checked = ap.epidemiologists || false;
   }
 
   const apiEl = document.getElementById('apiKeyStatus');
