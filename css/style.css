@@ -432,6 +432,43 @@ body {
 .badge-fb   { background: #e7f0fd; color: #1a4a8a; }
 .badge-reddit { background: #fff0eb; color: #8b2500; }
 .badge-linkedin { background: #e8f3ff; color: #0a3d6b; }
+.badge-instagram { background: #fde8f3; color: #8a1c5a; }
+
+/* ── INSTAGRAM IMAGE CHOOSER ─────────────────── */
+
+.ig-chooser {
+  border: 1.5px solid #f5c2dc;
+  border-radius: var(--radius-md);
+  background: #fff7fb;
+  padding: 1rem;
+  margin: 1rem 0;
+}
+.ig-chooser-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: #8a1c5a; }
+.ig-chooser-sub { font-size: 12px; color: var(--ink-500); margin: 4px 0 10px; }
+.ig-chooser-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ig-option {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  padding: 10px 12px; text-align: left; cursor: pointer;
+  border: 1px solid var(--sand-300); border-radius: var(--radius-sm);
+  background: var(--white); font-family: var(--font-sans);
+  transition: border-color .15s, background .15s;
+}
+.ig-option:hover { border-color: #DD2A7B; }
+.ig-option.active { border-color: #DD2A7B; background: #fde8f3; }
+.ig-option-label { font-size: 12px; font-weight: 600; color: var(--ink-700); }
+.ig-option-desc { font-size: 11px; color: var(--ink-300); }
+.ig-chooser-alt { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.ig-chooser-body { margin-top: 12px; }
+.ig-chooser-body:empty { display: none; }
+.ig-fields .field-label { margin-top: 8px; margin-bottom: 4px; }
+.ig-edit-hint { font-size: 10px; color: var(--ink-300); font-weight: 400; }
+.ig-slide-fields { border-top: 1px solid #f5c2dc; padding-top: 8px; margin-top: 8px; }
+.ig-slide-num { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: #8a1c5a; }
+.ig-warn { font-size: 12px; color: #8a4b00; background: #fff6e5; padding: 6px 8px; border-radius: 6px; margin: 8px 0; }
+.ig-results { display: grid; gap: 12px; margin-top: 12px; }
+.ig-result-item { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.ig-download { text-decoration: none; display: inline-flex; }
+@media (max-width: 640px) { .ig-chooser-options { grid-template-columns: 1fr; } }
 
 .post-actions { display: flex; gap: 6px; }
 
