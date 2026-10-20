@@ -349,7 +349,7 @@ function showView(view) {
   if (view === 'history') renderHistory();
   if (view === 'settings') loadSettings();
   if (view === 'hooks') renderHooks();
-  if (view === 'afya') loadAfyaContext();
+  if (view === 'afya') loadProductContexts();
 }
 
 function hooksStorageKey() {
@@ -613,7 +613,9 @@ async function generatePosts() {
 
   const tone = document.getElementById('toneSelect').value;
   const orgName = 'Afya';
-  const includeAfya = document.getElementById('includeAfyaCompose')?.checked && Storage.get('afyaContext', null);
+  const productKey = document.getElementById('productCompose')?.value || '';
+  const product = getProductContext(productKey);
+  if (productKey && !product) { showError(missingProductMessage(productKey)); return; }
   const hooks = Storage.get(hooksStorageKey(), []);
   const selectedHookId = document.getElementById('hookSelect')?.value || '';
   const activeHook = selectedHookId ? (hooks.find(h => String(h.id) === selectedHookId) || null) : null;
@@ -687,7 +689,7 @@ async function generatePosts() {
 
       const toneDescription = TONE_DESCRIPTIONS[tone] || tone;
       // Reddit communities usually remove company self-promotion, so Afya context is left out there
-      const useAfya = includeAfya && platform !== 'reddit';
+      const useProduct = product && platform !== 'reddit';
 
       const userPrompt = `Generate a single social media post based on this article or alert.
 
@@ -714,7 +716,7 @@ Respond with ONLY a valid JSON object — no markdown, no explanation, no code f
 {"platform": "${platform}", "audience": "${audienceKey}", "audienceLabel": "${audienceMeta.label}", "post": "your post text here"}
 
 Use \\n for line breaks inside the post text.
-${useAfya ? getAfyaContextBlock('post') : ''}`;
+${useProduct ? getProductContextBlock(product, 'post') : ''}`;
 
       try {
         const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -774,6 +776,7 @@ ${useAfya ? getAfyaContextBlock('post') : ''}`;
       url: url || '',
       content,
       hook: activeHook ? activeHook.name : '',
+      product: product ? product.name : '',
       summary: summary || null,
       platforms,
       audiences: selectedAudiences,         // ← audience tags saved to history
@@ -1389,7 +1392,11 @@ async function init() {
 
   populateHookDropdown();
   await renderHooks();
-  updateAfyaContextDates();
+  PRODUCT_SELECTS.forEach(({ select }) => {
+    const el = document.getElementById(select);
+    if (el) el.addEventListener('change', updateProductContextDates);
+  });
+  updateProductContextDates();
 }
 
 // ─── ARTICLE WRITER HELPERS ──────────────────────────────────────────────────
@@ -1766,7 +1773,7 @@ const ARTICLE_TYPES = {
   }
 };
 
-async function runHallucinationCheck(article, sourcesBlock, apiKey, afyaText) {
+async function runHallucinationCheck(article, sourcesBlock, apiKey, productRef) {
   const takeawayLines = (article.takeaways || []).map((t, i) => {
     const claim = typeof t === 'object' ? t.claim : t;
     const source = typeof t === 'object' && t.source ? ' [Source: ' + t.source + ']' : '';
@@ -1777,7 +1784,7 @@ async function runHallucinationCheck(article, sourcesBlock, apiKey, afyaText) {
 
 SOURCES:
 ${sourcesBlock}
-${afyaText ? '\nCOMPANY REFERENCE (Afya product information supplied by the author). Claims about Afya are supported if they appear here. Flag any Afya claim that goes beyond this text:\n' + afyaText + '\n' : ''}
+${productRef ? '\nCOMPANY REFERENCE (' + productRef.name + ' product information supplied by the author). Claims about ' + productRef.name + ' or Afya are supported if they appear here. Flag any product claim that goes beyond this text:\n' + productRef.text + '\n' : ''}
 ARTICLE TO CHECK:
 Title: ${article.title}
 
@@ -1905,7 +1912,9 @@ async function generateArticle() {
   }
 
   const angle = document.getElementById('articleAngle').value.trim();
-  const includeAfyaArticle = document.getElementById('includeAfyaArticle')?.checked && Storage.get('afyaContext', null);
+  const articleProductKey = document.getElementById('productArticle')?.value || '';
+  const articleProduct = getProductContext(articleProductKey);
+  if (articleProductKey && !articleProduct) { document.getElementById('articleError').textContent = missingProductMessage(articleProductKey); return; }
   const articleHooks = Storage.get(hooksStorageKey(), []);
   const articleHookId = document.getElementById('articleHookSelect')?.value || '';
   const articleHook = articleHookId ? (articleHooks.find(h => String(h.id) === articleHookId) || null) : null;
@@ -1938,7 +1947,7 @@ async function generateArticle() {
     '--- SOURCE ' + s.index + (s.org ? ' (' + s.org + ')' : '') + (s.url ? ' | ' + s.url : '') + ' ---\n' + s.content
   ).join('\n\n');
 
-  const prompt = `You are an expert healthcare content writer. You write for Afya, a company that helps health centers capture revenue through automated care coordination documentation.
+  const prompt = `You are an expert healthcare content writer. You write for Afya. Describe Afya or its products only using the product information provided below, if any.
 
 ${DATE_RULE}
 
@@ -1946,7 +1955,7 @@ ${audienceContext ? 'AUDIENCE CONTEXT:\n' + audienceContext + '\n' : ''}
 Write content that synthesizes ALL of the sources below into a single cohesive piece. Every source must contribute meaningfully. Draw connections between sources only where clearly supported by the source material. Write content based STRICTLY AND ONLY on the sources provided. Do not invent examples, fabricate statistics, or add outside knowledge.
 ${articleHook ? '\nMESSAGING HOOK — weave this angle throughout the article: ' + articleHook.text : ''}
 ${angle ? '\nMESSAGING ANGLE: ' + angle : ''}
-${includeAfyaArticle ? getAfyaContextBlock() : ''}
+${articleProduct ? getProductContextBlock(articleProduct) : ''}
 CONTENT TYPE: ${meta.label} (${meta.wordCount})
 
 INSTRUCTIONS:
@@ -2008,7 +2017,7 @@ Respond with ONLY a valid JSON object — no markdown, no explanation, no code f
     resultsEl.appendChild(checkLoadingEl);
 
     try {
-      const hallucinationCheck = await runHallucinationCheck(article, sourcesBlock, apiKey, includeAfyaArticle ? includeAfyaArticle.text : '');
+      const hallucinationCheck = await runHallucinationCheck(article, sourcesBlock, apiKey, articleProduct);
       checkLoadingEl.remove();
       const excerptSources = sources.filter(s => s.excerptOnly).map(s => 'Source ' + s.index);
       renderHallucinationCheck(hallucinationCheck, resultsEl, excerptSources);
@@ -2159,60 +2168,107 @@ function copyArticleSection(btn, text) {
 // ─── GLOBAL EXPORTS ───────────────────────────────────────────────────────────
 
 
-function saveAfyaContext() {
-  const text = document.getElementById('afyaContextInput').value.trim();
-  if (!text) {
-    document.getElementById('afyaContextStatus').innerHTML = '<span class="status-err">Please paste your product info first.</span>';
-    return;
+// ─── PRODUCT CONTEXT (Afya, SurveillanceIQ) ──────────────────────────────────
+// Each product has its own pasted info and "last updated" date. To add another
+// product later, add one entry here plus a matching card in index.html.
+
+const PRODUCTS = {
+  afya: {
+    name: 'Afya',
+    storageKey: 'afyaContext',
+    ids: { input: 'afyaContextInput', updated: 'afyaLastUpdated', status: 'afyaContextStatus' }
+  },
+  surveillanceiq: {
+    name: 'SurveillanceIQ',
+    storageKey: 'surveillanceIqContext',
+    ids: { input: 'siqContextInput', updated: 'siqLastUpdated', status: 'siqContextStatus' }
   }
-  const timestamp = new Date().toISOString();
-  Storage.set('afyaContext', { text, timestamp });
-  document.getElementById('afyaContextStatus').innerHTML = '<span class="status-ok">Afya context saved!</span>';
-  setTimeout(() => {
-    const el = document.getElementById('afyaContextStatus');
-    if (el) el.innerHTML = '';
-  }, 2000);
-  updateAfyaContextDates();
+};
+
+const PRODUCT_SELECTS = [
+  { select: 'productCompose', date: 'productDateCompose' },
+  { select: 'productArticle', date: 'productDateArticle' }
+];
+
+function getProductContext(key) {
+  const p = PRODUCTS[key];
+  if (!p) return null;
+  const ctx = Storage.get(p.storageKey, null);
+  return ctx && ctx.text ? { key, name: p.name, text: ctx.text, timestamp: ctx.timestamp } : null;
 }
 
-function clearAfyaContext() {
-  Storage.set('afyaContext', null);
-  const input = document.getElementById('afyaContextInput');
-  if (input) input.value = '';
-  updateAfyaContextDates();
-  document.getElementById('afyaContextStatus').innerHTML = '<span class="status-ok">Context cleared.</span>';
-  setTimeout(() => {
-    const el = document.getElementById('afyaContextStatus');
-    if (el) el.innerHTML = '';
-  }, 2000);
-}
-
-function loadAfyaContext() {
-  const ctx = Storage.get('afyaContext', null);
-  const input = document.getElementById('afyaContextInput');
-  if (input && ctx) input.value = ctx.text;
-  updateAfyaContextDates();
-}
-
-function updateAfyaContextDates() {
-  const ctx = Storage.get('afyaContext', null);
-  const dateStr = ctx
+function productDateLabel(key) {
+  const ctx = getProductContext(key);
+  return ctx
     ? 'Last updated: ' + new Date(ctx.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    : 'No context saved yet';
-  ['afyaLastUpdated', 'afyaContextDateCompose', 'afyaContextDateArticle'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.textContent = dateStr;
+    : 'No info saved yet';
+}
+
+function _flashStatus(id, html) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = html;
+  setTimeout(() => { const e = document.getElementById(id); if (e) e.innerHTML = ''; }, 2000);
+}
+
+function saveProductContext(key) {
+  const p = PRODUCTS[key];
+  if (!p) return;
+  const text = (document.getElementById(p.ids.input)?.value || '').trim();
+  if (!text) { _flashStatus(p.ids.status, '<span class="status-err">Please paste your ' + p.name + ' product info first.</span>'); return; }
+  Storage.set(p.storageKey, { text, timestamp: new Date().toISOString() });
+  _flashStatus(p.ids.status, '<span class="status-ok">' + p.name + ' info saved!</span>');
+  updateProductContextDates();
+}
+
+function clearProductContext(key) {
+  const p = PRODUCTS[key];
+  if (!p) return;
+  Storage.set(p.storageKey, null);
+  const input = document.getElementById(p.ids.input);
+  if (input) input.value = '';
+  _flashStatus(p.ids.status, '<span class="status-ok">' + p.name + ' info cleared.</span>');
+  updateProductContextDates();
+}
+
+function loadProductContexts() {
+  Object.keys(PRODUCTS).forEach(key => {
+    const ctx = getProductContext(key);
+    const input = document.getElementById(PRODUCTS[key].ids.input);
+    if (input && ctx) input.value = ctx.text;
+  });
+  updateProductContextDates();
+}
+
+function updateProductContextDates() {
+  Object.keys(PRODUCTS).forEach(key => {
+    const el = document.getElementById(PRODUCTS[key].ids.updated);
+    if (el) el.textContent = productDateLabel(key);
+  });
+  PRODUCT_SELECTS.forEach(({ select, date }) => {
+    const key = document.getElementById(select)?.value || '';
+    const el = document.getElementById(date);
+    if (!el) return;
+    el.textContent = key
+      ? productDateLabel(key) + (getProductContext(key) ? '' : '. Add it on the Product Context page.')
+      : '';
   });
 }
 
-function getAfyaContextBlock(mode) {
-  const ctx = Storage.get('afyaContext', null);
-  if (!ctx || !ctx.text) return '';
-  if (mode === 'post') {
-    return `\n\nAFYA PRODUCT CONTEXT: structure the post in three parts. 1) Open with one or two sentences that tie this news to the problem Afya solves and tease what Afya does. 2) Cover the news itself, which should be most of the post. 3) Close with a short line or paragraph on how Afya helps. Stay within the platform word limit. Keep it helpful, not a hard sell, and do not make any product claim that is not stated here:\n${ctx.text}`;
-  }
-  return `\n\nAFYA PRODUCT CONTEXT — use this to add an opening paragraph connecting the news to the problem Afya solves, and a closing "How Afya Can Help" section. Do not fabricate any product claims beyond what is stated here. Weave naturally — not as a hard sell:\n${ctx.text}`;
+function missingProductMessage(key) {
+  return PRODUCTS[key].name + ' is selected, but no ' + PRODUCTS[key].name + ' product info is saved yet. Add it on the Product Context page, or choose None.';
 }
+
+function getProductContextBlock(product, mode) {
+  if (!product || !product.text) return '';
+  const n = product.name;
+  const label = n === 'Afya' ? 'AFYA PRODUCT CONTEXT' : 'FEATURED PRODUCT: ' + n.toUpperCase() + ' (a product from Afya)';
+  if (mode === 'post') {
+    return `\n\n${label}: structure the post in three parts. 1) Open with one or two sentences that tie this news to the problem ${n} solves and tease what ${n} does. 2) Cover the news itself, which should be most of the post. 3) Close with a short line or paragraph on how ${n} helps. Stay within the platform word limit. Keep it helpful, not a hard sell, and do not make any product claim that is not stated here:\n${product.text}`;
+  }
+  return `\n\n${label}: use this to add an opening paragraph connecting the news to the problem ${n} solves, and a closing "How ${n} Can Help" section. Do not make any product claim beyond what is stated here. Weave it in naturally, not as a hard sell:\n${product.text}`;
+}
+
 function switchImageMode(mode, btn) {
   document.querySelectorAll('.image-mode-tab').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
@@ -2255,8 +2311,8 @@ window.sendToWriter = sendToWriter;
 window.copyDiscoverUrl = copyDiscoverUrl;
 window.filterHistory = filterHistory;
 window.filterHooksList = filterHooksList;
-window.saveAfyaContext = saveAfyaContext;
-window.clearAfyaContext = clearAfyaContext;
+window.saveProductContext = saveProductContext;
+window.clearProductContext = clearProductContext;
 window.switchImageMode = switchImageMode;
 window.switchImageModeCompose = switchImageModeCompose;
 
