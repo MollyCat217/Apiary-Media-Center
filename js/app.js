@@ -742,6 +742,14 @@ ${useAfya ? getAfyaContextBlock('post') : ''}`;
   }
 
 
+  // Image idea: a written suggestion the user can build themselves (Reddit posts are text only)
+  if (posts.length && abortController) {
+    const ideaSizes = platforms.filter(p => p !== 'reddit');
+    if (ideaSizes.length) {
+      await addImageIdea(container, content, { kind: 'social', source, audiences: selectedAudiences }, ideaSizes);
+    }
+  }
+
   // Instagram: show the image style chooser every time (nothing is generated until the user picks)
   const igPost = posts.find(p => p.platform === 'instagram');
   if (igPost) renderInstagramImageChooser(container, { content, source, summary, caption: igPost.post });
@@ -1947,6 +1955,9 @@ Respond with ONLY a valid JSON object — no markdown, no explanation, no code f
       resultsEl.appendChild(warn);
     }
 
+    await addImageIdea(resultsEl, (article.title || '') + '\n\n' + (article.body || ''),
+      { kind: 'article', source: sources.map(s => s.org).filter(Boolean).join(', '), audiences: articleAudiences }, ['article']);
+
     const articleHistoryKey = 'articleHistory_' + activePersona;
     const articleHistory = Storage.get(articleHistoryKey, []);
     articleHistory.unshift({
@@ -2622,3 +2633,107 @@ async function generateInstagramImages(type, uid, body) {
 }
 
 window.saveImageBrandStyle = saveImageBrandStyle;
+
+
+// ─── IMAGE IDEA (a written suggestion only; no image is generated) ──────────
+// Gives the user a concept they can build themselves in Canva or elsewhere.
+
+const IMAGE_SIZE_GUIDE = {
+  fb_page:   'Facebook: 1080 x 1080 square, or 1200 x 630 landscape',
+  fb_group:  'Facebook: 1080 x 1080 square, or 1200 x 630 landscape',
+  instagram: 'Instagram: 1080 x 1080 square, or 1080 x 1350 portrait',
+  linkedin:  'LinkedIn: 1200 x 627 landscape, or 1080 x 1080 square',
+  article:   'Article or blog header: 1200 x 630 landscape'
+};
+
+async function generateImageIdea(content, opts) {
+  const apiKey = Storage.get('apiKey', '');
+  const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  const audienceLabels = (opts.audiences || []).map(a => (AUDIENCE_PERSONAS[a] || {}).label || a).join(', ');
+  const prompt = 'Today is ' + today + '. Suggest ONE image concept that a designer could build by hand (for example in Canva) to accompany this ' +
+    (opts.kind === 'article' ? 'article' : 'set of social media posts') + '. Do not generate an image; describe it.' +
+    (audienceLabels ? ' Audience: ' + audienceLabels + '.' : '') +
+    ' Use ONLY facts stated in the content for any on-image text. Never invent numbers. Avoid identifiable patients, real military insignia or rank, and anything that implies a real person endorses the message.' + NO_EMDASH_RULE +
+    '\n\nCONTENT:\n' + String(content).slice(0, 8000) + (opts.source ? '\nSOURCE: ' + opts.source : '') +
+    '\n\nRespond with ONLY a valid JSON object, no markdown, no code fences:\n' +
+    '{"concept": "1 to 2 sentences: the core visual idea and why it fits",' +
+    ' "scene": "what to show: subjects, setting, composition",' +
+    ' "textOverlay": "optional on-image headline, max 8 words, using only facts from the content, or empty string",' +
+    ' "mood": "colors, lighting and feel",' +
+    ' "searchTerms": ["3 to 5 short search terms for Canva or stock photo sites"],' +
+    ' "altText": "accessible alt text, under 125 characters"}';
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    signal: abortController ? abortController.signal : undefined,
+    body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: 800, messages: [{ role: 'user', content: prompt }] })
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error?.message || 'API error ' + response.status);
+  }
+  const data = await response.json();
+  const raw = (data.content || []).map(b => b.text || '').join('').trim();
+  return JSON.parse(raw.replace(/```json|```/g, '').trim());
+}
+
+function renderImageIdea(idea, container, sizeKeys) {
+  const sizes = Array.from(new Set((sizeKeys || []).map(k => IMAGE_SIZE_GUIDE[k]).filter(Boolean)));
+  const terms = (idea.searchTerms || []).filter(Boolean);
+  const row = (label, value) => value
+    ? '<div class="idea-row"><div class="idea-label">' + label + '</div><div class="idea-value">' + escapeHtml(value) + '</div></div>'
+    : '';
+
+  const copyText = [
+    'IMAGE IDEA',
+    'Concept: ' + (idea.concept || ''),
+    'Scene: ' + (idea.scene || ''),
+    idea.textOverlay ? 'Text on image: ' + idea.textOverlay : '',
+    'Mood and colors: ' + (idea.mood || ''),
+    terms.length ? 'Search terms: ' + terms.join(', ') : '',
+    sizes.length ? 'Sizes: ' + sizes.join('; ') : '',
+    idea.altText ? 'Alt text: ' + idea.altText : ''
+  ].filter(Boolean).join('\n');
+
+  const card = document.createElement('div');
+  card.className = 'image-idea-card';
+  card.innerHTML =
+    '<div class="idea-header"><span class="idea-title">Image idea</span>' +
+    '<button type="button" class="action-btn" data-copy="' + escapeHtml(copyText) + '">Copy idea</button></div>' +
+    '<div class="idea-sub">A suggestion to build yourself. Nothing has been generated.</div>' +
+    row('Concept', idea.concept) +
+    row('Scene', idea.scene) +
+    row('Text on image', idea.textOverlay) +
+    row('Mood and colors', idea.mood) +
+    (terms.length ? '<div class="idea-row"><div class="idea-label">Search terms</div><div class="idea-value idea-terms">' +
+      terms.map(t => '<span class="hashtag-chip">' + escapeHtml(t) + '</span>').join('') + '</div></div>' : '') +
+    (sizes.length ? '<div class="idea-row"><div class="idea-label">Sizes</div><div class="idea-value">' + sizes.map(escapeHtml).join('<br>') + '</div></div>' : '') +
+    row('Alt text', idea.altText) +
+    (idea.textOverlay ? '<div class="ig-warn">Check any text on the image against the article before posting.</div>' : '');
+  container.appendChild(card);
+}
+
+async function addImageIdea(container, content, opts, sizeKeys) {
+  const loading = document.createElement('div');
+  loading.className = 'loading-msg';
+  loading.textContent = 'Suggesting an image idea...';
+  container.appendChild(loading);
+  try {
+    const idea = await generateImageIdea(content, opts);
+    loading.remove();
+    renderImageIdea(idea, container, sizeKeys);
+  } catch (err) {
+    loading.remove();
+    if (err.name === 'AbortError') return;
+    const note = document.createElement('div');
+    note.className = 'error-msg';
+    note.textContent = 'Could not suggest an image idea: ' + err.message;
+    container.appendChild(note);
+  }
+}

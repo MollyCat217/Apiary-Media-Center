@@ -1772,3 +1772,21 @@ textarea:disabled { opacity: .6; cursor: progress; }
   font-size: 12px; color: #8a4b00; background: #fff6e5;
   padding: 6px 8px; border-radius: 6px; margin-bottom: 8px;
 }
+
+/* ── IMAGE IDEA CARD ─────────────────────────── */
+
+.image-idea-card {
+  border: 1.5px solid var(--teal-200);
+  border-radius: var(--radius-md);
+  background: var(--teal-50);
+  padding: 1rem;
+  margin: 1rem 0;
+}
+.idea-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.idea-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--teal-700); }
+.idea-sub { font-size: 12px; color: var(--ink-500); margin: 4px 0 10px; }
+.idea-row { display: grid; grid-template-columns: 120px 1fr; gap: 10px; padding: 7px 0; border-top: 1px solid var(--teal-200); }
+.idea-label { font-size: 11px; font-weight: 600; color: var(--ink-500); }
+.idea-value { font-size: 13px; color: var(--ink-700); line-height: 1.55; overflow-wrap: anywhere; }
+.idea-terms { display: flex; flex-wrap: wrap; gap: 6px; }
+@media (max-width: 640px) { .idea-row { grid-template-columns: 1fr; gap: 2px; } }
