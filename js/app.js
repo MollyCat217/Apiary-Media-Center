@@ -444,6 +444,7 @@ function appendPost(item, container, audienceLabel) {
     <div class="char-count">${item.post.length} characters</div>
   `;
   container.appendChild(card);
+  return card;
 }
 
 function copyPost(btn, text) {
@@ -518,9 +519,12 @@ function copySummary(btn) {
   });
 }
 
-async function generateSummary(content, source, apiKey) {
+async function generateSummary(content, source, apiKey, audiences) {
   const persona = getPersona();
-  const summaryPrompt = `Analyze this article or alert and return a structured intelligence brief tailored for ${persona.fullLabel}.
+  const audienceLabels = (audiences || []).map(a => (AUDIENCE_PERSONAS[a] || {}).label).filter(Boolean);
+  const audienceText = audienceLabels.length ? audienceLabels.join(', ') : persona.fullLabel;
+  const multi = audienceLabels.length > 1;
+  const summaryPrompt = `Analyze this article or alert and return a structured intelligence brief tailored for: ${audienceText}.
 
 ${DATE_RULE}
 Use ONLY facts stated in the CONTENT. Do not add outside facts, background, or assumptions.
@@ -534,8 +538,8 @@ Respond with ONLY a valid JSON object — no markdown, no explanation, no code f
 {
   "tldr": "1-2 sentence plain-language summary of what happened and why it matters",
   "facts": ["key fact 1", "key fact 2", "key fact 3", "key fact 4"],
-  "why": "2-3 sentences explaining the specific implications for ${persona.fullLabel} — operations, funding, policy, patients, or workforce",
-  "hashtags": ["3 to 7 relevant specific hashtags for ${persona.fullLabel}"]
+  "why": "${multi ? 'One or two sentences per audience, each starting with the audience name and a colon, explaining what this means for them' : '2-3 sentences explaining the specific implications for ' + audienceText}",
+  "hashtags": ["3 to 7 relevant specific hashtags for ${audienceText}"]
 }`;
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -651,6 +655,7 @@ async function generatePosts() {
 
   const timestamp = new Date().toISOString();
   const posts = [];
+  const postCards = [];
 
   // Summary generation
   const summaryLoading = document.createElement('div');
@@ -660,7 +665,7 @@ async function generatePosts() {
 
   let summary = null;
   try {
-    summary = await generateSummary(content, source, apiKey);
+    summary = await generateSummary(content, source, apiKey, selectedAudiences);
     summaryLoading.remove();
     if (summary && summary.insufficient) {
       const errDiv = document.createElement('div');
@@ -766,7 +771,7 @@ ${useProduct ? getProductContextBlock(product, 'post') : ''}`;
 
         const loadingEl = document.getElementById('loading-' + platform + '-' + audienceKey);
         if (loadingEl) loadingEl.remove();
-        appendPost(item, container, selectedAudiences.length > 1 ? audienceMeta.label : null);
+        postCards.push(appendPost(item, container, selectedAudiences.length > 1 ? audienceMeta.label : null));
 
       } catch (err) {
         const loadingEl = document.getElementById('loading-' + platform + '-' + audienceKey);
@@ -782,6 +787,33 @@ ${useProduct ? getProductContextBlock(product, 'post') : ''}`;
         errDiv.className = 'error-msg';
         errDiv.textContent = 'Error generating ' + platformMeta.label + ' (' + audienceMeta.label + '): ' + err.message;
         container.appendChild(errDiv);
+      }
+    }
+  }
+
+  // Source grounding check for posts: one check covering every post in the batch
+  if (posts.length && abortController) {
+    const checkLoading = document.createElement('div');
+    checkLoading.className = 'loading-msg';
+    checkLoading.textContent = 'Checking posts against the source...';
+    container.appendChild(checkLoading);
+    try {
+      const result = await runPostGroundingCheck(posts, content, source, product, apiKey);
+      checkLoading.remove();
+      const excerpt = content.length < 600 ? ['The alert content'] : null;
+      (result.results || []).forEach(r => {
+        const i = Number(r.index) - 1;
+        if (!posts[i] || !postCards[i]) return;
+        posts[i].groundingCheck = { passed: !!r.passed, issues: r.issues || [] };
+        renderHallucinationCheck({ passed: r.passed, confidence: r.confidence || 'medium', issues: r.issues || [], summary: r.summary || '' }, postCards[i], excerpt);
+      });
+    } catch (err) {
+      checkLoading.remove();
+      if (err.name !== 'AbortError') {
+        const note = document.createElement('div');
+        note.className = 'error-msg';
+        note.textContent = 'Could not run the source check on these posts: ' + err.message + ' Review facts manually before posting.';
+        container.appendChild(note);
       }
     }
   }
@@ -1471,12 +1503,14 @@ async function discoverArticles() {
   // Read selected discover audiences and enrich topic queries
   const discoverAudienceEls = document.querySelectorAll('input[name="discoverAudience"]:checked');
   const discoverAudiences = Array.from(discoverAudienceEls).map(el => el.value);
-  const audienceTerms = discoverAudiences.flatMap(a => (AUDIENCE_PERSONAS[a] || {}).searchTerms || []);
+  // Take terms from every selected audience so one audience cannot crowd out the others
+  const termsPerAudience = discoverAudiences.length === 1 ? 2 : 1;
+  const audienceTerms = discoverAudiences.flatMap(a => ((AUDIENCE_PERSONAS[a] || {}).searchTerms || []).slice(0, termsPerAudience));
 
   // Enrich each topic with audience-specific keywords
   const enrichedTopics = userTopics.map(topic =>
     audienceTerms.length > 0
-      ? topic + ' (' + audienceTerms.slice(0, 2).join(', ') + ')'
+      ? topic + ' (' + audienceTerms.join(', ') + ')'
       : topic
   );
 
@@ -2882,3 +2916,46 @@ async function addImageIdea(container, content, opts, sizeKeys) {
     container.appendChild(note);
   }
 }
+
+// ─── SOURCE GROUNDING CHECK FOR POSTS ────────────────────────────────────────
+// Checks every post in a batch against the pasted content in one request.
+
+async function runPostGroundingCheck(posts, content, source, productRef, apiKey) {
+  const postList = posts.map((p, i) =>
+    '--- POST ' + (i + 1) + ' (' + ((PLATFORM_META[p.platform] || {}).label || p.platform) + (p.audienceLabel ? ', ' + p.audienceLabel : '') + ') ---\n' + p.post
+  ).join('\n\n');
+
+  const prompt = `You are a fact-checking assistant. Check each social media post below against the SOURCE CONTENT. ${DATE_RULE} Never flag a claim only because its date seems recent or in the future.
+
+Flag only factual claims: numbers, dates, names, quotes, and specific statements of what happened, that are not found in the source, contradict it, or appear invented. Also flag numbers that were changed or rounded in a misleading way. Do not flag opinions, framing, calls to action, questions, or hashtags.
+
+SOURCE CONTENT:
+${String(content).slice(0, 12000)}
+${source ? '\nSOURCE: ' + source : ''}
+${productRef ? '\nCOMPANY REFERENCE (' + productRef.name + ' product information supplied by the author). Claims about ' + productRef.name + ', Afya or Apiary Labs are supported if they appear here. The company is Apiary Labs, Afya is its product and SurveillanceIQ is part of Afya; correct naming is not an unsupported claim. Flag any product claim that goes beyond this text:\n' + productRef.text + '\n' : ''}
+POSTS TO CHECK:
+${postList}
+
+Respond with ONLY a valid JSON object, no markdown, no code fences, with one result per post in order:
+{"results": [{"index": 1, "passed": true, "confidence": "high", "issues": [{"claim": "exact phrase from the post", "issue": "not found in source / contradicts source / appears invented"}], "summary": "one short sentence"}]}`;
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    signal: abortController ? abortController.signal : undefined,
+    body: JSON.stringify({ model: CLAUDE_MODEL, max_tokens: 3000, messages: [{ role: 'user', content: prompt }] })
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error?.message || 'API error ' + response.status);
+  }
+  const data = await response.json();
+  const raw = (data.content || []).map(b => b.text || '').join('').trim();
+  return JSON.parse(raw.replace(/```json|```/g, '').trim());
+}
+
