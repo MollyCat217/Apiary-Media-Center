@@ -629,7 +629,7 @@ async function generatePosts() {
   }
 
   const tone = document.getElementById('toneSelect').value;
-  const orgName = 'Afya';
+  const orgName = COMPANY_NAME;
   const productKey = document.getElementById('productCompose')?.value || '';
   const product = getProductContext(productKey);
   if (productKey && !product) { showError(missingProductMessage(productKey)); return; }
@@ -717,7 +717,7 @@ CONTENT:
 ${content}
 ${source ? '\nSOURCE: ' + source : ''}
 ${url ? '\nURL: ' + url : ''}
-POSTING ON BEHALF OF: ${orgName}
+POSTING ON BEHALF OF: ${orgName}. ${COMPANY_DESCRIPTION}
 
 TONE: ${toneDescription}
 ${activeHook ? '\nMESSAGING HOOK — weave this angle into the post: ' + activeHook.text : ''}
@@ -1803,7 +1803,7 @@ async function runHallucinationCheck(article, sourcesBlock, apiKey, productRef) 
 
 SOURCES:
 ${sourcesBlock}
-${productRef ? '\nCOMPANY REFERENCE (' + productRef.name + ' product information supplied by the author). Claims about ' + productRef.name + ' or Afya are supported if they appear here. Flag any product claim that goes beyond this text:\n' + productRef.text + '\n' : ''}
+${productRef ? '\nCOMPANY REFERENCE (' + productRef.name + ' product information supplied by the author). Claims about ' + productRef.name + ', Afya or Apiary Labs are supported if they appear here. The company is Apiary Labs, Afya is its product and SurveillanceIQ is part of Afya; correct naming is not an unsupported claim. Flag any product claim that goes beyond this text:\n' + productRef.text + '\n' : ''}
 ARTICLE TO CHECK:
 Title: ${article.title}
 
@@ -1966,7 +1966,7 @@ async function generateArticle() {
     '--- SOURCE ' + s.index + (s.org ? ' (' + s.org + ')' : '') + (s.url ? ' | ' + s.url : '') + ' ---\n' + s.content
   ).join('\n\n');
 
-  const prompt = `You are an expert healthcare content writer. You write for Afya. Describe Afya or its products only using the product information provided below, if any.
+  const prompt = `You are an expert healthcare content writer. You write for ${COMPANY_NAME}. ${COMPANY_DESCRIPTION} Describe Apiary Labs, Afya or SurveillanceIQ only using the product information provided below, if any.
 
 ${DATE_RULE}
 
@@ -2191,6 +2191,10 @@ function copyArticleSection(btn, text) {
 // Each product has its own pasted info and "last updated" date. To add another
 // product later, add one entry here plus a matching card in index.html.
 
+// Company and product naming used in every prompt
+const COMPANY_NAME = 'Apiary Labs';
+const COMPANY_DESCRIPTION = 'Apiary Labs is the company. Afya is its main product. SurveillanceIQ is a module within Afya. When naming SurveillanceIQ, call it part of Afya or "SurveillanceIQ by Apiary Labs". Never call Afya or SurveillanceIQ a company.';
+
 const PRODUCTS = {
   afya: {
     name: 'Afya',
@@ -2281,7 +2285,7 @@ function missingProductMessage(key) {
 function getProductContextBlock(product, mode) {
   if (!product || !product.text) return '';
   const n = product.name;
-  const label = n === 'Afya' ? 'AFYA PRODUCT CONTEXT' : 'FEATURED PRODUCT: ' + n.toUpperCase() + ' (a product from Afya)';
+  const label = n === 'Afya' ? 'AFYA PRODUCT CONTEXT (Afya is the main product of Apiary Labs)' : 'FEATURED PRODUCT: ' + n.toUpperCase() + ' (a module within Afya, by Apiary Labs)';
   if (mode === 'post') {
     return `\n\n${label}: structure the post in three parts. 1) Open with one or two sentences that tie this news to the problem ${n} solves and tease what ${n} does. 2) Cover the news itself, which should be most of the post. 3) Close with a short line or paragraph on how ${n} helps. Stay within the platform word limit. Keep it helpful, not a hard sell, and do not make any product claim that is not stated here:\n${product.text}`;
   }
